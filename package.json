@@ -1,0 +1,38 @@
+{
+  "name": "@iamoberlin/chorus",
+  "version": "0.1.0",
+  "description": "Agent autonomy, security, and memory for OpenClaw. Config via CHORUS.md.",
+  "author": "Oberlin Stands <oberlin.stands@icloud.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iamoberlin/chorus.git"
+  },
+  "homepage": "https://github.com/iamoberlin/chorus#readme",
+  "bugs": {
+    "url": "https://github.com/iamoberlin/chorus/issues"
+  },
+  "keywords": [
+    "openclaw",
+    "plugin",
+    "agent",
+    "security",
+    "memory",
+    "autonomy"
+  ],
+  "type": "module",
+  "main": "index.ts",
+  "files": [
+    "index.ts",
+    "src/",
+    "openclaw.plugin.json"
+  ],
+  "peerDependencies": {
+    "openclaw": ">=2026.1.0"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

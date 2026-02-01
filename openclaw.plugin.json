@@ -1,0 +1,13 @@
+{
+  "id": "chorus",
+  "name": "CHORUS",
+  "description": "Agent autonomy, security, and memory for OpenClaw. Config via CHORUS.md.",
+  "version": "0.1.0",
+  "author": "Oberlin Stands",
+  "homepage": "https://github.com/iamoberlin/chorus",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}
