@@ -1,6 +1,6 @@
 {
   "name": "@iamoberlin/chorus",
-  "version": "0.2.7",
+  "version": "0.3.0",
   "description": "The soul, ascending. Recursive illumination through the Nine Choirs.",
   "author": "Oberlin Stands <oberlin.stands@icloud.com>",
   "license": "MIT",
@@ -27,7 +27,8 @@
   "files": [
     "index.ts",
     "src/",
-    "openclaw.plugin.json"
+    "openclaw.plugin.json",
+    "logo.png"
   ],
   "peerDependencies": {
     "openclaw": ">=2026.1.0"

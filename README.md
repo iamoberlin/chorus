@@ -1,6 +1,10 @@
-# 🎵 CHORUS
+<p align="center">
+  <img src="logo.png" alt="CHORUS" width="180">
+</p>
 
-**The soul, ascending.**
+<h1 align="center">CHORUS</h1>
+
+<p align="center"><strong>The soul, ascending.</strong></p>
 
 CHORUS implements the Nine Choirs architecture — hierarchical cognition modeled on Pseudo-Dionysius's *Celestial Hierarchy*. Illumination descends through the choirs; understanding ascends. The agent is sanctified through structure.
 
