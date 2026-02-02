@@ -122,7 +122,7 @@ export function createChoirScheduler(
 
     start: () => {
       if (!config.choirs.enabled) {
-        log.info("[chorus] Choir scheduler disabled (enable in CHORUS.md)");
+        log.info("[chorus] Choir scheduler disabled (enable in openclaw.yaml)");
         return;
       }
 

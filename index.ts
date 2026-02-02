@@ -1,9 +1,9 @@
 /**
  * CHORUS Extension
  *
- * Recursive self-improvement for OpenClaw agents.
- * Implements the Nine Choirs hierarchy for hierarchical cognition.
- * Config via CHORUS.md in agent workspace.
+ * The soul, ascending.
+ * Recursive illumination through the Nine Choirs.
+ * Config via openclaw.yaml: plugins.entries.chorus.config
  */
 
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk";
@@ -12,7 +12,7 @@ import { createSecurityHooks } from "./src/security.js";
 import { createChoirScheduler } from "./src/scheduler.js";
 import { CHOIRS, formatFrequency } from "./src/choirs.js";
 
-const VERSION = "0.2.6";
+const VERSION = "0.2.7";
 
 const plugin = {
   id: "chorus",
@@ -25,9 +25,8 @@ const plugin = {
     const config = loadChorusConfig(pluginConfig);
 
     api.logger.info(`[chorus] 🎵 CHORUS v${VERSION}`);
-    api.logger.info(`[chorus] Config: ${workspaceDir || "defaults"}`);
 
-    // Register security hooks (prompt hardening)
+    // Register security hooks (Powers choir handles security)
     createSecurityHooks(api, config);
 
     // Register choir scheduler service
@@ -35,30 +34,28 @@ const plugin = {
       api.registerService(createChoirScheduler(config, api.logger, api));
       api.logger.info("[chorus] Choirs enabled — scheduler registered");
     } else {
-      api.logger.info("[chorus] Choirs disabled — set 'Enabled: true' in CHORUS.md");
+      api.logger.info("[chorus] Choirs disabled — set enabled: true in openclaw.yaml");
     }
 
-    // Register CLI (with commands list to prevent duplicate registration)
+    // Register CLI
     api.registerCli((ctx) => {
       const program = ctx.program.command("chorus").description("CHORUS Nine Choirs management");
 
       // Status command
       program.command("status").description("Show CHORUS status").action(() => {
         console.log("");
-        console.log("🎵 CHORUS — Nine Choirs Architecture");
+        console.log("🎵 CHORUS — The soul, ascending.");
         console.log("═".repeat(42));
         console.log("");
-        console.log(`  Version:          ${VERSION}`);
-        console.log(`  Prompt hardening: ${config.security.promptHardening ? "✅ enabled" : "❌ disabled"}`);
-        console.log(`  Choirs:           ${config.choirs.enabled ? "✅ enabled" : "❌ disabled"}`);
-        console.log(`  Memory audit:     ${config.memory.audit ? "✅ enabled" : "❌ disabled"}`);
-        console.log(`  Consolidation:    ${config.memory.consolidation ? "✅ enabled" : "❌ disabled"}`);
-        console.log(`  Workspace:        ${workspaceDir || "(default)"}`);
+        console.log(`  Version:        ${VERSION}`);
+        console.log(`  Choirs:         ${config.choirs.enabled ? "✅ enabled" : "❌ disabled"}`);
+        console.log(`  Timezone:       ${config.choirs.timezone}`);
+        console.log(`  Consolidation:  ${config.memory.consolidation ? "✅ enabled" : "❌ disabled"}`);
         console.log("");
         
         if (!config.choirs.enabled) {
-          console.log("  💡 To enable choirs, add to CHORUS.md:");
-          console.log("     - Enabled: true");
+          console.log("  💡 To enable choirs, add to openclaw.yaml:");
+          console.log("     plugins.entries.chorus.config.enabled: true");
           console.log("");
         }
       });
@@ -102,7 +99,6 @@ const plugin = {
           }
           console.log(`\n${choir.emoji} Running ${choir.name}...\n`);
           
-          // Check if we can execute
           if (typeof api.runAgentTurn === 'function') {
             console.log("Executing choir...\n");
             try {
