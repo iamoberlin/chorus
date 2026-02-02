@@ -18,23 +18,26 @@
   <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     :root {
-      /* Angelic Light Theme */
-      --bg: #f8f9fc;
+      /* OpenClaw Red + Angelic Gold Theme */
+      --bg: #faf8f8;
       --bg-elevated: #ffffff;
+      --red: #dc3545;
+      --red-bright: #e84a59;
+      --red-dim: #b82d3a;
+      --red-glow: rgba(220, 53, 69, 0.12);
+      --red-glow-strong: rgba(220, 53, 69, 0.2);
       --gold: #c9a227;
       --gold-bright: #dbb42c;
       --gold-dim: #a68b1f;
       --gold-glow: rgba(201, 162, 39, 0.15);
-      --gold-glow-strong: rgba(201, 162, 39, 0.25);
-      --sky: #c5dff8;
-      --sky-light: #e8f2fc;
-      --red: #d64f4f;
+      --sky: #fce8e8;
+      --sky-light: #fdf4f4;
       --text: #2d3748;
       --text-dim: #718096;
-      --border: #e2e8f0;
-      --border-light: #edf2f7;
+      --border: #f0e2e2;
+      --border-light: #f7efef;
       --card: #ffffff;
-      --accent: #c9a227;
+      --accent: #dc3545;
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -54,7 +57,7 @@
       top: 0; left: 0; right: 0;
       height: 100vh;
       background: 
-        radial-gradient(ellipse 80% 50% at 50% -10%, var(--sky) 0%, transparent 50%),
+        radial-gradient(ellipse 80% 50% at 50% -10%, var(--red-glow-strong) 0%, transparent 50%),
         radial-gradient(ellipse 60% 40% at 80% 80%, var(--gold-glow) 0%, transparent 40%);
       pointer-events: none;
       z-index: 0;
@@ -93,7 +96,7 @@
       font-family: 'Crimson Pro', Georgia, serif;
       font-size: 2.75rem;
       font-weight: 500;
-      color: var(--gold);
+      color: var(--red);
       letter-spacing: 0.12em;
       margin-bottom: 14px;
     }
@@ -115,7 +118,7 @@
     }
 
     .subhead a {
-      color: var(--gold);
+      color: var(--red);
     }
 
     /* Toggle */
@@ -143,7 +146,7 @@
     }
 
     .toggle-btn.active {
-      background: var(--gold);
+      background: var(--red);
       color: #fff;
     }
 
@@ -170,14 +173,14 @@
     }
 
     .install-hero code {
-      color: var(--gold-dim);
+      color: var(--red-dim);
       background: none;
       border: none;
       padding: 0;
     }
 
     .install-hero button {
-      background: var(--gold);
+      background: var(--red);
       border: none;
       color: #fff;
       padding: 8px 16px;
@@ -189,7 +192,7 @@
     }
 
     .install-hero button:hover {
-      background: var(--gold-bright);
+      background: var(--red-bright);
     }
 
     /* ===== CONTENT ===== */
@@ -213,7 +216,7 @@
       font-family: 'Crimson Pro', Georgia, serif;
       font-size: 1.6rem;
       font-weight: 500;
-      color: var(--gold);
+      color: var(--red);
       margin: 64px 0 20px;
       letter-spacing: 0.02em;
     }
@@ -236,19 +239,20 @@
 
     ul, ol { margin: 18px 0; padding-left: 24px; }
     li { margin-bottom: 10px; }
-    li::marker { color: var(--gold); }
+    li::marker { color: var(--red); }
 
     .dim { color: var(--text-dim); }
     .gold { color: var(--gold); }
+    .red { color: var(--red); }
     strong { font-weight: 600; }
 
     a {
-      color: var(--gold);
+      color: var(--red);
       text-decoration: none;
       border-bottom: 1px solid transparent;
       transition: border-color 0.2s;
     }
-    a:hover { border-bottom-color: var(--gold-dim); }
+    a:hover { border-bottom-color: var(--red-dim); }
 
     code {
       font-family: 'JetBrains Mono', monospace;
@@ -257,7 +261,7 @@
       border: 1px solid var(--border);
       padding: 2px 7px;
       border-radius: 5px;
-      color: var(--gold-dim);
+      color: var(--red-dim);
     }
 
     pre {
@@ -309,7 +313,7 @@
 
     .freq-bar {
       height: 100%;
-      background: linear-gradient(90deg, var(--sky), var(--gold));
+      background: linear-gradient(90deg, var(--red-glow-strong), var(--red), var(--gold));
       border-radius: 4px;
     }
 
@@ -353,8 +357,8 @@
     }
 
     .choir-card:hover { 
-      border-color: var(--gold);
-      box-shadow: 0 4px 16px rgba(201, 162, 39, 0.1);
+      border-color: var(--red);
+      box-shadow: 0 4px 16px var(--red-glow);
     }
 
     .choir-header {
@@ -374,8 +378,8 @@
     .choir-freq {
       font-family: 'JetBrains Mono', monospace;
       font-size: 0.7rem;
-      color: var(--gold);
-      background: var(--sky-light);
+      color: var(--gold-dim);
+      background: rgba(201, 162, 39, 0.1);
       padding: 4px 10px;
       border-radius: 4px;
     }
@@ -390,7 +394,7 @@
     .callout {
       background: linear-gradient(135deg, var(--sky-light) 0%, var(--card) 100%);
       border: 1px solid var(--border);
-      border-left: 3px solid var(--gold);
+      border-left: 3px solid var(--red);
       border-radius: 8px;
       padding: 24px 28px;
       margin: 32px 0;
@@ -428,7 +432,7 @@
 
     .benefit {
       padding-left: 20px;
-      border-left: 2px solid var(--gold);
+      border-left: 2px solid var(--red);
     }
 
     .benefit h3 { margin-top: 0; }
@@ -449,9 +453,9 @@
       text-align: center;
       font-size: 1.2rem;
       letter-spacing: 0.5em;
-      color: var(--gold);
+      color: var(--red);
       margin: 48px 0;
-      opacity: 0.7;
+      opacity: 0.8;
     }
 
     hr {
@@ -476,7 +480,7 @@
     }
 
     .spec-table th {
-      color: var(--gold);
+      color: var(--red);
       font-weight: 500;
       font-size: 0.75rem;
       text-transform: uppercase;
@@ -503,7 +507,7 @@
       font-size: 0.9rem;
       border: none;
     }
-    .footer-links a:hover { color: var(--gold); }
+    .footer-links a:hover { color: var(--red); }
     .footer-credit {
       color: var(--text-dim);
       font-size: 0.8rem;
@@ -770,9 +774,9 @@
 
     <p>Configure in <code>openclaw.yaml</code>:</p>
 
-    <pre><span style="color: var(--gold)">plugins:</span>
-  <span style="color: var(--gold)">entries:</span>
-    <span style="color: var(--gold)">chorus:</span>
+    <pre><span style="color: var(--red)">plugins:</span>
+  <span style="color: var(--red)">entries:</span>
+    <span style="color: var(--red)">chorus:</span>
       enabled: true
       config:
         enabled: true              <span style="color: var(--text-dim)"># Nine Choirs scheduler</span>
@@ -810,9 +814,9 @@
 
     <p>Configure in <code>openclaw.yaml</code>:</p>
 
-    <pre><span style="color: var(--gold)">plugins:</span>
-  <span style="color: var(--gold)">entries:</span>
-    <span style="color: var(--gold)">chorus:</span>
+    <pre><span style="color: var(--red)">plugins:</span>
+  <span style="color: var(--red)">entries:</span>
+    <span style="color: var(--red)">chorus:</span>
       enabled: true
       config:
         enabled: true
@@ -886,14 +890,14 @@
 
     <h2>Information Flow</h2>
 
-    <pre><span style="color: var(--gold)">ILLUMINATION (downward)</span>
+    <pre><span style="color: var(--red)">ILLUMINATION (downward)</span>
 seraphim → cherubim → thrones → dominions → virtues
         → powers → principalities → archangels → angels
 
 Each choir receives context from choirs above.
 Context accumulates in workspace files.
 
-<span style="color: var(--gold)">INSIGHT (upward)</span>
+<span style="color: var(--red)">INSIGHT (upward)</span>
 angels → archangels → principalities → powers → virtues
       → dominions → thrones → cherubim → seraphim
 
@@ -904,20 +908,20 @@ cherubim consolidates to MEMORY.md.</pre>
 
     <p>The <code>virtues</code> choir implements recursive self-improvement:</p>
 
-    <pre><span style="color: var(--gold)">1. ANALYZE</span>
+    <pre><span style="color: var(--red)">1. ANALYZE</span>
    Read memory files, CHANGELOG.md, recent sessions
    Identify: successes, failures, patterns
 
-<span style="color: var(--gold)">2. PROPOSE</span>
+<span style="color: var(--red)">2. PROPOSE</span>
    Generate modification (config, prompt, automation)
    Assess risk: low | medium | high
 
-<span style="color: var(--gold)">3. APPLY</span>
+<span style="color: var(--red)">3. APPLY</span>
    Low-risk: implement directly, log to CHANGELOG.md
    Medium-risk: implement, flag for review
    High-risk: write to proposals/, await human approval
 
-<span style="color: var(--gold)">4. VALIDATE</span>
+<span style="color: var(--red)">4. VALIDATE</span>
    powers choir reviews changes adversarially
    Reverts if issues detected</pre>
 
@@ -925,16 +929,16 @@ cherubim consolidates to MEMORY.md.</pre>
 
     <p>Security is handled by the <strong>Powers choir</strong> (8×/day adversarial review). For real-time input validation, enable core OpenClaw security.</p>
 
-    <pre><span style="color: var(--gold)">security:</span>
+    <pre><span style="color: var(--red)">security:</span>
   inputValidation:
     enabled: true
     onThreat: block</pre>
 
     <h2>Commands</h2>
 
-    <pre><span style="color: var(--gold)">openclaw chorus status</span>   <span style="color: var(--text-dim)"># Show CHORUS status</span>
-<span style="color: var(--gold)">openclaw chorus list</span>     <span style="color: var(--text-dim)"># List all choirs</span>
-<span style="color: var(--gold)">openclaw chorus run &lt;id&gt;</span> <span style="color: var(--text-dim)"># Manually trigger a choir</span></pre>
+    <pre><span style="color: var(--red)">openclaw chorus status</span>   <span style="color: var(--text-dim)"># Show CHORUS status</span>
+<span style="color: var(--red)">openclaw chorus list</span>     <span style="color: var(--text-dim)"># List all choirs</span>
+<span style="color: var(--red)">openclaw chorus run &lt;id&gt;</span> <span style="color: var(--text-dim)"># Manually trigger a choir</span></pre>
 
     <hr>
 
