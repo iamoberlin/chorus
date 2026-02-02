@@ -1,6 +1,6 @@
 ---
 name: chorus
-version: 0.2.0
+version: 0.2.1
 description: Nine Choirs Architecture — recursive self-improvement for OpenClaw agents. Your agent gets better every day.
 homepage: https://chorus.oberlin.ai
 repository: https://github.com/iamoberlin/chorus
