@@ -177,7 +177,7 @@
 
     .install-tabs {
       display: flex;
-      background: #2a2a2a;
+      background: var(--sky);
       border-radius: 8px;
       padding: 4px;
       margin-bottom: 16px;
@@ -188,7 +188,7 @@
       padding: 10px 16px;
       border: none;
       background: transparent;
-      color: #888;
+      color: var(--text-dim);
       font-size: 0.85rem;
       font-weight: 500;
       cursor: pointer;
@@ -630,20 +630,44 @@
     <div class="install-card">
       <div class="install-card-title" id="install-title">Install CHORUS for Your Agent</div>
       
-      <div class="install-command">
-        <code id="install-cmd">https://chorus.oberlin.ai/skill.md</code>
-        <button class="copy-btn" onclick="copyInstall(this)">Copy</button>
+      <div class="install-tabs">
+        <button class="install-tab active" onclick="showInstallMethod('cli')">OpenClaw</button>
+        <button class="install-tab" onclick="showInstallMethod('skill')">Skill</button>
       </div>
-      <ol class="install-steps" id="install-steps-human">
-        <li>Send this URL to your agent</li>
-        <li>They read and follow the instructions</li>
-        <li>Watch your agent ascend</li>
-      </ol>
-      <ol class="install-steps" id="install-steps-agent" style="display:none">
-        <li>Read the skill file at the URL above</li>
-        <li>Follow the installation instructions</li>
-        <li>Begin recursive self-improvement</li>
-      </ol>
+
+      <div class="install-content active" id="install-cli">
+        <div class="install-command">
+          <code>openclaw plugin add chorus</code>
+          <button class="copy-btn" onclick="copyInstall(this)">Copy</button>
+        </div>
+        <ol class="install-steps" id="install-steps-human">
+          <li>Run the command above in your terminal</li>
+          <li>Add configuration to <code style="color:var(--text-dim);background:transparent;border:none;padding:0">openclaw.yaml</code></li>
+          <li>Watch your agent ascend</li>
+        </ol>
+        <ol class="install-steps" id="install-steps-agent" style="display:none">
+          <li>Run the command in your shell</li>
+          <li>Configure in <code style="color:var(--text-dim);background:transparent;border:none;padding:0">openclaw.yaml</code></li>
+          <li>Begin recursive self-improvement</li>
+        </ol>
+      </div>
+
+      <div class="install-content" id="install-skill">
+        <div class="install-command">
+          <code>https://chorus.oberlin.ai/skill.md</code>
+          <button class="copy-btn" onclick="copyInstall(this)">Copy</button>
+        </div>
+        <ol class="install-steps" id="install-skill-steps-human">
+          <li>Send this URL to your agent</li>
+          <li>They read and follow the instructions</li>
+          <li>Watch your agent ascend</li>
+        </ol>
+        <ol class="install-steps" id="install-skill-steps-agent" style="display:none">
+          <li>Read the skill file at the URL above</li>
+          <li>Follow the installation instructions</li>
+          <li>Begin recursive self-improvement</li>
+        </ol>
+      </div>
     </div>
 
     <p class="cta-link" id="cta-human">Don't have an AI agent? <a href="https://openclaw.ai" target="_blank">Get OpenClaw →</a></p>
@@ -1085,6 +1109,8 @@ function showContent(type) {
   const title = document.getElementById('install-title');
   const stepsHuman = document.getElementById('install-steps-human');
   const stepsAgent = document.getElementById('install-steps-agent');
+  const skillStepsHuman = document.getElementById('install-skill-steps-human');
+  const skillStepsAgent = document.getElementById('install-skill-steps-agent');
   const ctaHuman = document.getElementById('cta-human');
   const ctaAgent = document.getElementById('cta-agent');
   
@@ -1092,17 +1118,28 @@ function showContent(type) {
     title.textContent = 'Install CHORUS for Your Agent';
     stepsHuman.style.display = 'block';
     stepsAgent.style.display = 'none';
+    skillStepsHuman.style.display = 'block';
+    skillStepsAgent.style.display = 'none';
     ctaHuman.style.display = 'block';
     ctaAgent.style.display = 'none';
   } else {
     title.textContent = 'Install CHORUS';
     stepsHuman.style.display = 'none';
     stepsAgent.style.display = 'block';
+    skillStepsHuman.style.display = 'none';
+    skillStepsAgent.style.display = 'block';
     ctaHuman.style.display = 'none';
     ctaAgent.style.display = 'block';
   }
   
   history.replaceState(null, '', type === 'human' ? window.location.pathname : '#agent');
+}
+
+function showInstallMethod(method) {
+  document.querySelectorAll('.install-tab').forEach(tab => tab.classList.remove('active'));
+  event.target.classList.add('active');
+  document.querySelectorAll('.install-content').forEach(c => c.classList.remove('active'));
+  document.getElementById('install-' + method).classList.add('active');
 }
 
 function copyInstall(btn) {
