@@ -2,7 +2,7 @@
   "id": "chorus",
   "name": "CHORUS",
   "description": "The soul, ascending. Recursive illumination through the Nine Choirs.",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "author": "Oberlin Stands",
   "homepage": "https://chorus.oberlin.ai",
   "repository": "https://github.com/iamoberlin/chorus",
@@ -10,36 +10,63 @@
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
-    "description": "CHORUS uses workspace-based config (CHORUS.md) for agent-modifiable settings. These options override workspace config.",
     "properties": {
-      "workspaceConfigPath": {
-        "type": "string",
-        "description": "Path to CHORUS.md config file (default: <workspace>/CHORUS.md)"
-      },
-      "choirsEnabled": {
+      "enabled": {
         "type": "boolean",
-        "description": "Override to enable/disable choir scheduler"
+        "description": "Enable the Nine Choirs scheduler"
+      },
+      "timezone": {
+        "type": "string",
+        "description": "IANA timezone for choir scheduling (e.g., America/New_York)"
       },
       "promptHardening": {
         "type": "boolean",
-        "description": "Override to enable/disable identity protection"
+        "description": "Enable identity protection via system prompt injection"
+      },
+      "memoryConsolidation": {
+        "type": "boolean",
+        "description": "Enable Cherubim memory consolidation"
+      },
+      "episodicRetentionDays": {
+        "type": "number",
+        "description": "Days to retain episodic memory files"
+      },
+      "choirs": {
+        "type": "object",
+        "description": "Individual choir enable/disable overrides",
+        "additionalProperties": {
+          "type": "boolean"
+        }
       }
     }
   },
   "uiHints": {
-    "workspaceConfigPath": {
-      "label": "Config Path",
-      "placeholder": "CHORUS.md",
-      "advanced": true,
-      "help": "Path to CHORUS.md in workspace (usually auto-detected)"
-    },
-    "choirsEnabled": {
+    "enabled": {
       "label": "Enable Choirs",
-      "help": "Master toggle for Nine Choirs scheduler (overrides CHORUS.md)"
+      "help": "Master toggle for Nine Choirs scheduler"
+    },
+    "timezone": {
+      "label": "Timezone",
+      "placeholder": "America/New_York",
+      "help": "IANA timezone for scheduling"
     },
     "promptHardening": {
       "label": "Prompt Hardening",
-      "help": "Identity protection via system prompt injection (overrides CHORUS.md)"
+      "help": "Identity protection via system prompt"
+    },
+    "memoryConsolidation": {
+      "label": "Memory Consolidation",
+      "help": "Cherubim promotes insights to MEMORY.md"
+    },
+    "episodicRetentionDays": {
+      "label": "Episodic Retention",
+      "placeholder": "90",
+      "help": "Days to keep daily memory files"
+    },
+    "choirs": {
+      "label": "Choir Overrides",
+      "advanced": true,
+      "help": "Enable/disable specific choirs (e.g., {\"angels\": false})"
     }
   }
 }

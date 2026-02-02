@@ -12,20 +12,17 @@ import { createSecurityHooks } from "./src/security.js";
 import { createChoirScheduler } from "./src/scheduler.js";
 import { CHOIRS, formatFrequency } from "./src/choirs.js";
 
-const VERSION = "0.2.4";
+const VERSION = "0.2.5";
 
 const plugin = {
   id: "chorus",
   name: "CHORUS",
-  description: "Nine Choirs architecture for recursive self-improvement.",
+  description: "The soul, ascending. Recursive illumination through the Nine Choirs.",
 
   register(api: OpenClawPluginApi) {
-    // Get plugin config from openclaw.yaml (if any)
+    // Standard OpenClaw config: plugins.entries.chorus.config
     const pluginConfig = api.config.plugins?.entries?.chorus?.config as ChorusPluginConfig | undefined;
-    
-    // Load config: CHORUS.md + openclaw.yaml overrides
-    const workspaceDir = api.config.agents?.defaults?.workspace;
-    const config = loadChorusConfig(workspaceDir, pluginConfig);
+    const config = loadChorusConfig(pluginConfig);
 
     api.logger.info(`[chorus] 🎵 CHORUS v${VERSION}`);
     api.logger.info(`[chorus] Config: ${workspaceDir || "defaults"}`);

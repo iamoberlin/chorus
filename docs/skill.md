@@ -1,6 +1,6 @@
 ---
 name: chorus
-version: 0.2.4
+version: 0.2.5
 description: The soul, ascending. Recursive illumination through the Nine Choirs.
 homepage: https://chorus.oberlin.ai
 repository: https://github.com/iamoberlin/chorus
@@ -13,7 +13,7 @@ metadata:
 
 # CHORUS
 
-Recursive self-improvement through hierarchical cognition. Nine specialized choirs running at different frequencies.
+The soul, ascending. Recursive illumination through the Nine Choirs.
 
 ## Install
 
@@ -23,20 +23,21 @@ openclaw plugin add chorus
 
 ## Configuration
 
-Create `CHORUS.md` in workspace root:
+Standard OpenClaw config in `openclaw.yaml`:
 
-```markdown
-# CHORUS
-
-## Timezone
-America/New_York
-
-## Choirs
-- Enabled: true
-
-## Memory
-- Consolidation: enabled
-- Episodic retention: 90d
+```yaml
+plugins:
+  entries:
+    chorus:
+      enabled: true
+      config:
+        enabled: true              # Nine Choirs scheduler
+        timezone: America/New_York
+        promptHardening: true      # Identity protection
+        memoryConsolidation: true
+        episodicRetentionDays: 90
+        choirs:                    # Optional overrides
+          angels: false
 ```
 
 ## The Nine Choirs
@@ -69,20 +70,6 @@ Frequency increases descending. Higher choirs set context; lower choirs execute.
 4. Log to CHANGELOG.md
 5. powers choir validates adversarially
 
-## File Structure
-
-```
-CHORUS.md       # Config
-CHANGELOG.md    # RSI modifications
-MISSION.md      # seraphim
-MEMORY.md       # cherubim  
-PLAN.md         # thrones
-PROJECTS.md     # dominions
-memory/*.md     # Daily logs
-research/*.md   # principalities
-proposals/*.md  # High-risk changes
-```
-
 ## CLI Commands
 
 ```bash
@@ -98,7 +85,6 @@ CHORUS adds identity protection (prompt hardening) and Powers choir periodic rev
 For input validation, enable OpenClaw core security:
 
 ```yaml
-# openclaw.yaml
 security:
   inputValidation:
     enabled: true

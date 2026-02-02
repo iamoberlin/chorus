@@ -21,32 +21,7 @@ openclaw plugin add chorus
 
 ## Configuration
 
-CHORUS uses **workspace-based config** (`CHORUS.md`) so the agent can modify its own settings as part of self-improvement. You can also use `openclaw.yaml` for overrides.
-
-### Option 1: Workspace Config (Recommended)
-
-Create `CHORUS.md` in your workspace:
-
-```markdown
-# CHORUS
-
-## Timezone
-America/New_York
-
-## Choirs
-- Enabled: true
-
-Disable specific choirs:
-- angels: disabled
-
-## Memory
-- Consolidation: enabled
-- Episodic retention: 90d
-```
-
-### Option 2: openclaw.yaml Overrides
-
-Override workspace config via `openclaw.yaml`:
+Standard OpenClaw plugin config via `openclaw.yaml`:
 
 ```yaml
 plugins:
@@ -54,11 +29,14 @@ plugins:
     chorus:
       enabled: true
       config:
-        choirsEnabled: true
-        promptHardening: true
+        enabled: true              # Enable Nine Choirs scheduler
+        timezone: America/New_York
+        promptHardening: true      # Identity protection
+        memoryConsolidation: true  # Cherubim consolidates to MEMORY.md
+        episodicRetentionDays: 90
+        choirs:                    # Optional: disable specific choirs
+          angels: false
 ```
-
-**Priority:** `openclaw.yaml` > `CHORUS.md` > defaults
 
 ## The Nine Choirs
 
@@ -111,7 +89,7 @@ Day 1, baseline. Day 30, unrecognizable.
 ## File Outputs
 
 ```
-CHORUS.md       # Config
+openclaw.yaml   # Config (plugins.entries.chorus)
 CHANGELOG.md    # RSI modifications log
 MISSION.md      # Seraphim output
 MEMORY.md       # Cherubim consolidation
@@ -165,7 +143,7 @@ The architecture draws from Pseudo-Dionysius's *Celestial Hierarchy* — organiz
 openclaw plugin remove chorus
 ```
 
-Then delete `CHORUS.md` from your workspace.
+Then remove the `chorus` entry from `openclaw.yaml`.
 
 ## License
 
