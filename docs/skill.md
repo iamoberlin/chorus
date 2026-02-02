@@ -43,15 +43,15 @@ plugins:
 
 | Choir | Freq | Function | Output |
 |-------|------|----------|--------|
-| 🔥 seraphim | 1×/day | Mission alignment | MISSION.md |
-| 📚 cherubim | 2×/day | Knowledge consolidation | MEMORY.md |
-| ⚖️ thrones | 3×/day | Priority judgment | PLAN.md |
-| 📋 dominions | 4×/day | Project coordination | PROJECTS.md |
-| 🔧 virtues | 6×/day | **RSI — self-improvement** | CHANGELOG.md |
-| 🛡️ powers | 8×/day | Security review, red-team | Security reports |
-| 🔍 principalities | 12×/day | Domain research | research/*.md |
-| 📣 archangels | 18×/day | Briefings, alerts | Messages |
-| 👁️ angels | 48×/day | Heartbeat, presence | HEARTBEAT_OK |
+| seraphim | 1×/day | Mission alignment | MISSION.md |
+| cherubim | 2×/day | Knowledge consolidation | MEMORY.md |
+| thrones | 3×/day | Priority judgment | PLAN.md |
+| dominions | 4×/day | Project coordination | PROJECTS.md |
+| virtues | 6×/day | **RSI — self-improvement** | CHANGELOG.md |
+| powers | 8×/day | Security review, red-team | Security reports |
+| principalities | 12×/day | Domain research | research/*.md |
+| archangels | 18×/day | Briefings, alerts | Messages |
+| angels | 48×/day | Heartbeat, presence | HEARTBEAT_OK |
 
 Frequency increases descending. Higher choirs set context; lower choirs execute.
 

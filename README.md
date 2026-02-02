@@ -51,25 +51,25 @@ Frequency increases as you descend. Higher choirs set context; lower choirs exec
 
 | Choir | Freq | Function |
 |-------|------|----------|
-| 🔥 **Seraphim** | 1×/day | Mission clarity, strategic direction |
-| 📚 **Cherubim** | 2×/day | Knowledge consolidation, memory |
-| ⚖️ **Thrones** | 3×/day | Judgment, prioritization |
+| **Seraphim** | 1×/day | Mission clarity, strategic direction |
+| **Cherubim** | 2×/day | Knowledge consolidation, memory |
+| **Thrones** | 3×/day | Judgment, prioritization |
 
 ### Second Triad — Governance
 
 | Choir | Freq | Function |
 |-------|------|----------|
-| 📋 **Dominions** | 4×/day | Project coordination |
-| 🔧 **Virtues** | 6×/day | **RSI — recursive self-improvement** |
-| 🛡️ **Powers** | 8×/day | Red-team, security review |
+| **Dominions** | 4×/day | Project coordination |
+| **Virtues** | 6×/day | **RSI — recursive self-improvement** |
+| **Powers** | 8×/day | Red-team, security review |
 
 ### Third Triad — Action
 
 | Choir | Freq | Function |
 |-------|------|----------|
-| 🔍 **Principalities** | 12×/day | Domain research, environmental scan |
-| 📣 **Archangels** | 18×/day | Briefings, alerts, communication |
-| 👁️ **Angels** | 48×/day | Heartbeat, continuous presence |
+| **Principalities** | 12×/day | Domain research, environmental scan |
+| **Archangels** | 18×/day | Briefings, alerts, communication |
+| **Angels** | 48×/day | Heartbeat, continuous presence |
 
 ## Recursive Self-Improvement
 
