@@ -1,7 +1,7 @@
 ---
 name: chorus
-version: 1.0.0
-description: Nine Choirs Architecture — hierarchical cognition with recursive self-improvement for AI agents.
+version: 0.2.0
+description: Nine Choirs Architecture — recursive self-improvement for OpenClaw agents. Your agent gets better every day.
 homepage: https://chorus.oberlin.ai
 repository: https://github.com/iamoberlin/chorus
 author: Oberlin Stands
@@ -13,18 +13,12 @@ metadata:
 
 # CHORUS
 
-Hierarchical cognition with recursive self-improvement. Nine specialized choirs running at different frequencies.
+Recursive self-improvement through hierarchical cognition. Nine specialized choirs running at different frequencies.
 
 ## Install
 
 ```bash
 openclaw plugin add chorus
-```
-
-## Uninstall
-
-```bash
-openclaw plugin remove chorus
 ```
 
 ## Configuration
@@ -45,19 +39,19 @@ America/New_York
 - Episodic retention: 90d
 ```
 
-## Choir Frequencies
+## The Nine Choirs
 
-| Choir | Freq | Function |
-|-------|------|----------|
-| seraphim | 1×/day | Mission alignment |
-| cherubim | 2×/day | Knowledge consolidation |
-| thrones | 3×/day | Priority judgment |
-| dominions | 4×/day | Project coordination |
-| virtues | 6×/day | Self-improvement (RSI) |
-| powers | 8×/day | Security review, red-team |
-| principalities | 12×/day | Domain research |
-| archangels | 18×/day | Briefings, alerts |
-| angels | 48×/day | Heartbeat, presence |
+| Choir | Freq | Function | Output |
+|-------|------|----------|--------|
+| 🔥 seraphim | 1×/day | Mission alignment | MISSION.md |
+| 📚 cherubim | 2×/day | Knowledge consolidation | MEMORY.md |
+| ⚖️ thrones | 3×/day | Priority judgment | PLAN.md |
+| 📋 dominions | 4×/day | Project coordination | PROJECTS.md |
+| 🔧 virtues | 6×/day | **RSI — self-improvement** | CHANGELOG.md |
+| 🛡️ powers | 8×/day | Security review, red-team | Security reports |
+| 🔍 principalities | 12×/day | Domain research | research/*.md |
+| 📣 archangels | 18×/day | Briefings, alerts | Messages |
+| 👁️ angels | 48×/day | Heartbeat, presence | HEARTBEAT_OK |
 
 Frequency increases descending. Higher choirs set context; lower choirs execute.
 
@@ -67,20 +61,6 @@ Frequency increases descending. Higher choirs set context; lower choirs execute.
 
 **Insight (up):** Observations flow upward through memory files. cherubim consolidates to MEMORY.md.
 
-## File Outputs
-
-```
-CHORUS.md       # Config
-CHANGELOG.md    # RSI modifications
-MISSION.md      # seraphim
-MEMORY.md       # cherubim
-PLAN.md         # thrones
-PROJECTS.md     # dominions
-memory/*.md     # Daily logs
-research/*.md   # principalities
-proposals/*.md  # High-risk changes
-```
-
 ## RSI Protocol (virtues)
 
 1. Analyze recent memory, identify patterns
@@ -89,24 +69,51 @@ proposals/*.md  # High-risk changes
 4. Log to CHANGELOG.md
 5. powers choir validates adversarially
 
+## File Structure
+
+```
+CHORUS.md       # Config
+CHANGELOG.md    # RSI modifications
+MISSION.md      # seraphim
+MEMORY.md       # cherubim  
+PLAN.md         # thrones
+PROJECTS.md     # dominions
+memory/*.md     # Daily logs
+research/*.md   # principalities
+proposals/*.md  # High-risk changes
+```
+
+## CLI Commands
+
+```bash
+openclaw chorus status      # Show status
+openclaw chorus list        # List choirs
+openclaw chorus run <id>    # Manual trigger
+```
+
 ## Security
 
-CHORUS integrates with OpenClaw's core security layer.
+CHORUS adds identity protection (prompt hardening) and Powers choir periodic review (8×/day).
 
-**Enable in openclaw.yaml:**
+For input validation, enable OpenClaw core security:
+
 ```yaml
+# openclaw.yaml
 security:
   inputValidation:
     enabled: true
     onThreat: block
 ```
 
-**CHORUS adds:**
-- Identity protection (prompt hardening)
-- Powers choir periodic review (8×/day)
+## Uninstall
+
+```bash
+openclaw plugin remove chorus
+```
 
 ## Links
 
 - [Documentation](https://chorus.oberlin.ai)
 - [GitHub](https://github.com/iamoberlin/chorus)
+- [npm](https://www.npmjs.com/package/@iamoberlin/chorus)
 - [OpenClaw](https://openclaw.ai)

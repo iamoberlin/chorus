@@ -3,29 +3,31 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CHORUS — The Nine Choirs Architecture</title>
-  <meta name="description" content="Hierarchical cognition for AI agents. Your agent gets better every day.">
-  <meta property="og:title" content="CHORUS — The Nine Choirs Architecture">
+  <title>CHORUS — Nine Choirs for OpenClaw Agents</title>
+  <meta name="description" content="Recursive self-improvement through hierarchical cognition. Your OpenClaw agent gets better every day.">
+  <meta property="og:title" content="CHORUS — Nine Choirs for OpenClaw Agents">
   <meta property="og:description" content="Recursive self-improvement through architecture. Your agent gets better every day.">
   <meta property="og:type" content="website">
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎵</text></svg>">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,500;0,600;1,400&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #08070a;
-      --bg-elevated: #0e0d12;
-      --gold: #d4a853;
-      --gold-bright: #e8c170;
-      --gold-dim: #9a8560;
-      --gold-glow: rgba(212, 168, 83, 0.08);
-      --gold-glow-strong: rgba(212, 168, 83, 0.15);
-      --text: #ebe7df;
-      --text-dim: #8a867e;
-      --border: #1f1d24;
-      --border-light: #2a272f;
-      --card: #111015;
+      /* OpenClaw Red Theme */
+      --bg: #0a0608;
+      --bg-elevated: #120a0d;
+      --red: #dc3545;
+      --red-bright: #ff4757;
+      --red-dim: #a02530;
+      --red-glow: rgba(220, 53, 69, 0.12);
+      --red-glow-strong: rgba(220, 53, 69, 0.2);
+      --text: #f0e8eb;
+      --text-dim: #8a7f82;
+      --border: #241a1d;
+      --border-light: #352a2d;
+      --card: #14090c;
+      --accent: #ff6b7a;
     }
 
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -45,8 +47,8 @@
       top: 0; left: 0; right: 0;
       height: 100vh;
       background: 
-        radial-gradient(ellipse 80% 50% at 50% -10%, var(--gold-glow-strong) 0%, transparent 60%),
-        radial-gradient(ellipse 60% 40% at 80% 60%, rgba(212, 168, 83, 0.03) 0%, transparent 50%);
+        radial-gradient(ellipse 80% 50% at 50% -10%, var(--red-glow-strong) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 40% at 80% 60%, rgba(220, 53, 69, 0.05) 0%, transparent 50%);
       pointer-events: none;
       z-index: 0;
     }
@@ -74,18 +76,18 @@
     }
 
     @keyframes pulse {
-      0%, 100% { filter: drop-shadow(0 0 20px var(--gold-glow)); opacity: 0.9; }
-      50% { filter: drop-shadow(0 0 30px var(--gold-glow-strong)); opacity: 1; }
+      0%, 100% { filter: drop-shadow(0 0 20px var(--red-glow)); opacity: 0.9; }
+      50% { filter: drop-shadow(0 0 30px var(--red-glow-strong)); opacity: 1; }
     }
 
     h1 {
       font-family: 'Crimson Pro', Georgia, serif;
       font-size: 2.75rem;
       font-weight: 500;
-      color: var(--gold);
+      color: var(--red);
       letter-spacing: 0.12em;
       margin-bottom: 14px;
-      text-shadow: 0 0 60px var(--gold-glow);
+      text-shadow: 0 0 60px var(--red-glow);
     }
 
     .headline {
@@ -100,6 +102,10 @@
       color: var(--text-dim);
       font-size: 0.95rem;
       margin-top: 8px;
+    }
+
+    .subhead a {
+      color: var(--red);
     }
 
     /* Toggle */
@@ -126,8 +132,8 @@
     }
 
     .toggle-btn.active {
-      background: var(--gold);
-      color: var(--bg);
+      background: var(--red);
+      color: #fff;
     }
 
     .toggle-btn:hover:not(.active) {
@@ -152,16 +158,16 @@
     }
 
     .install-hero code {
-      color: var(--gold);
+      color: var(--red);
       background: none;
       border: none;
       padding: 0;
     }
 
     .install-hero button {
-      background: var(--gold);
+      background: var(--red);
       border: none;
-      color: var(--bg);
+      color: #fff;
       padding: 8px 16px;
       border-radius: 6px;
       cursor: pointer;
@@ -171,7 +177,7 @@
     }
 
     .install-hero button:hover {
-      background: var(--gold-bright);
+      background: var(--red-bright);
     }
 
     /* ===== CONTENT ===== */
@@ -195,7 +201,7 @@
       font-family: 'Crimson Pro', Georgia, serif;
       font-size: 1.6rem;
       font-weight: 500;
-      color: var(--gold);
+      color: var(--red);
       margin: 64px 0 20px;
       letter-spacing: 0.02em;
     }
@@ -218,19 +224,19 @@
 
     ul, ol { margin: 18px 0; padding-left: 24px; }
     li { margin-bottom: 10px; }
-    li::marker { color: var(--gold-dim); }
+    li::marker { color: var(--red-dim); }
 
     .dim { color: var(--text-dim); }
-    .gold { color: var(--gold); }
+    .red { color: var(--red); }
     strong { font-weight: 600; }
 
     a {
-      color: var(--gold);
+      color: var(--red);
       text-decoration: none;
       border-bottom: 1px solid transparent;
       transition: border-color 0.2s;
     }
-    a:hover { border-bottom-color: var(--gold-dim); }
+    a:hover { border-bottom-color: var(--red-dim); }
 
     code {
       font-family: 'JetBrains Mono', monospace;
@@ -239,7 +245,7 @@
       border: 1px solid var(--border);
       padding: 2px 7px;
       border-radius: 5px;
-      color: var(--gold-bright);
+      color: var(--accent);
     }
 
     pre {
@@ -277,7 +283,7 @@
     .freq-name {
       font-family: 'Crimson Pro', Georgia, serif;
       font-size: 1.05rem;
-      color: var(--gold);
+      color: var(--red);
     }
 
     .freq-bar-container {
@@ -289,7 +295,7 @@
 
     .freq-bar {
       height: 100%;
-      background: linear-gradient(90deg, var(--gold-dim), var(--gold));
+      background: linear-gradient(90deg, var(--red-dim), var(--red));
       border-radius: 4px;
     }
 
@@ -344,7 +350,7 @@
       font-family: 'Crimson Pro', Georgia, serif;
       font-size: 1.15rem;
       font-weight: 500;
-      color: var(--gold);
+      color: var(--red);
     }
 
     .choir-freq {
@@ -366,7 +372,7 @@
     .callout {
       background: linear-gradient(135deg, var(--card) 0%, var(--bg-elevated) 100%);
       border: 1px solid var(--border);
-      border-left: 3px solid var(--gold);
+      border-left: 3px solid var(--red);
       border-radius: 8px;
       padding: 24px 28px;
       margin: 32px 0;
@@ -424,9 +430,9 @@
       text-align: center;
       font-size: 0.9rem;
       letter-spacing: 0.5em;
-      color: var(--gold-dim);
+      color: var(--red-dim);
       margin: 48px 0;
-      opacity: 0.4;
+      opacity: 0.6;
     }
 
     hr {
@@ -451,7 +457,7 @@
     }
 
     .spec-table th {
-      color: var(--gold);
+      color: var(--red);
       font-weight: 500;
       font-size: 0.75rem;
       text-transform: uppercase;
@@ -460,49 +466,7 @@
 
     .spec-table td:first-child {
       font-family: 'JetBrains Mono', monospace;
-      color: var(--gold-bright);
-    }
-
-    .endpoint {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      margin: 24px 0;
-      overflow: hidden;
-    }
-
-    .endpoint-header {
-      background: var(--bg-elevated);
-      padding: 12px 16px;
-      border-bottom: 1px solid var(--border);
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .endpoint-method {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.75rem;
-      font-weight: 600;
-      padding: 4px 8px;
-      border-radius: 4px;
-      background: var(--gold);
-      color: var(--bg);
-    }
-
-    .endpoint-path {
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.85rem;
-      color: var(--text);
-    }
-
-    .endpoint-body {
-      padding: 16px;
-    }
-
-    .endpoint-body p {
-      font-size: 0.9rem;
-      margin-bottom: 12px;
+      color: var(--accent);
     }
 
     /* ===== FOOTER ===== */
@@ -519,7 +483,7 @@
       font-size: 0.9rem;
       border: none;
     }
-    .footer-links a:hover { color: var(--gold); }
+    .footer-links a:hover { color: var(--red); }
     .footer-credit {
       color: var(--text-dim);
       font-size: 0.8rem;
@@ -543,10 +507,10 @@
 
 <header>
   <div class="container">
-    <div class="sigil" id="sigil">👁️</div>
+    <div class="sigil" id="sigil">🎵</div>
     <h1>CHORUS</h1>
     <p class="headline">Your agent gets better every day.</p>
-    <p class="subhead">Recursive self-improvement through architecture.</p>
+    <p class="subhead">Nine Choirs architecture for <a href="https://openclaw.ai">OpenClaw</a> agents.</p>
     
     <div class="toggle-container">
       <button class="toggle-btn active" onclick="showContent('human')">For Humans</button>
@@ -555,7 +519,7 @@
 
     <div class="install-hero">
       <code>openclaw plugin add chorus</code>
-      <button class="copy-btn" onclick="copyInstall(this)">Install</button>
+      <button class="copy-btn" onclick="copyInstall(this)">Copy</button>
     </div>
   </div>
 </header>
@@ -565,15 +529,15 @@
   <!-- ==================== HUMAN CONTENT ==================== -->
   <div class="content active" id="human-content">
 
-    <p class="lead">Most AI agents are frozen. Same prompts, same mistakes, no learning. <strong>CHORUS changes that.</strong></p>
+    <p class="lead">Most AI agents are frozen. Same prompts, same mistakes, same limitations — forever. <strong>CHORUS changes that.</strong></p>
     
-    <p class="lead">Nine specialized cognitive functions running at different frequencies — from daily mission review to continuous monitoring. The system literally modifies itself to get better.</p>
+    <p class="lead">Nine specialized cognitive functions running at different frequencies — from daily mission review to continuous monitoring. The agent literally modifies itself to get better.</p>
 
     <div class="key-point">
       <p>"An agent that improves itself daily will be unrecognizable in a month."</p>
     </div>
 
-    <h2>The Frequency Hierarchy</h2>
+    <h2>The Nine Choirs</h2>
     
     <p>Different cognitive functions need different rhythms. Strategic reflection doesn't belong in a real-time loop. Security monitoring doesn't belong in a weekly batch.</p>
     
@@ -583,69 +547,63 @@
       <div class="triad-header">First Triad — Contemplation</div>
       
       <div class="freq-row">
-        <div class="freq-name">Seraphim</div>
-        <div class="freq-bar-container"><div class="freq-bar" style="width: 4%"></div></div>
+        <div class="freq-name">🔥 Seraphim</div>
+        <div class="freq-bar-container"><div class="freq-bar" style="width: 2%"></div></div>
         <div class="freq-label">1×/day</div>
       </div>
       
       <div class="freq-row">
-        <div class="freq-name">Cherubim</div>
-        <div class="freq-bar-container"><div class="freq-bar" style="width: 8%"></div></div>
+        <div class="freq-name">📚 Cherubim</div>
+        <div class="freq-bar-container"><div class="freq-bar" style="width: 4%"></div></div>
         <div class="freq-label">2×/day</div>
       </div>
       
       <div class="freq-row">
-        <div class="freq-name">Thrones</div>
-        <div class="freq-bar-container"><div class="freq-bar" style="width: 12%"></div></div>
+        <div class="freq-name">⚖️ Thrones</div>
+        <div class="freq-bar-container"><div class="freq-bar" style="width: 6%"></div></div>
         <div class="freq-label">3×/day</div>
       </div>
 
       <div class="triad-header">Second Triad — Governance</div>
       
       <div class="freq-row">
-        <div class="freq-name">Dominions</div>
-        <div class="freq-bar-container"><div class="freq-bar" style="width: 17%"></div></div>
+        <div class="freq-name">📋 Dominions</div>
+        <div class="freq-bar-container"><div class="freq-bar" style="width: 8%"></div></div>
         <div class="freq-label">4×/day</div>
       </div>
       
       <div class="freq-row">
-        <div class="freq-name">Virtues</div>
-        <div class="freq-bar-container"><div class="freq-bar" style="width: 25%"></div></div>
+        <div class="freq-name">🔧 Virtues</div>
+        <div class="freq-bar-container"><div class="freq-bar" style="width: 12%"></div></div>
         <div class="freq-label">6×/day</div>
       </div>
       
       <div class="freq-row">
-        <div class="freq-name">Powers</div>
-        <div class="freq-bar-container"><div class="freq-bar" style="width: 33%"></div></div>
+        <div class="freq-name">🛡️ Powers</div>
+        <div class="freq-bar-container"><div class="freq-bar" style="width: 17%"></div></div>
         <div class="freq-label">8×/day</div>
       </div>
 
       <div class="triad-header">Third Triad — Action</div>
       
       <div class="freq-row">
-        <div class="freq-name">Principalities</div>
-        <div class="freq-bar-container"><div class="freq-bar" style="width: 50%"></div></div>
+        <div class="freq-name">🔍 Principalities</div>
+        <div class="freq-bar-container"><div class="freq-bar" style="width: 25%"></div></div>
         <div class="freq-label">12×/day</div>
       </div>
       
       <div class="freq-row">
-        <div class="freq-name">Archangels</div>
-        <div class="freq-bar-container"><div class="freq-bar" style="width: 75%"></div></div>
+        <div class="freq-name">📣 Archangels</div>
+        <div class="freq-bar-container"><div class="freq-bar" style="width: 38%"></div></div>
         <div class="freq-label">18×/day</div>
       </div>
       
       <div class="freq-row">
-        <div class="freq-name">Angels</div>
+        <div class="freq-name">👁️ Angels</div>
         <div class="freq-bar-container"><div class="freq-bar" style="width: 100%"></div></div>
         <div class="freq-label">48×/day</div>
       </div>
     </div>
-
-    <p><strong>Illumination flows down.</strong> Each morning, Seraphim sets the mission context. That context cascades through increasingly frequent execution layers. By the time it reaches Angels, the mission has been translated into moment-to-moment action.</p>
-
-    <p><strong>Insight flows up.</strong> Angels observe patterns. Principalities synthesize them into research. Virtues turn them into improvements. Cherubim consolidate them into lasting knowledge.</p>
-
-    <h2>The Nine Choirs</h2>
 
     <h3>First Triad — Contemplation</h3>
     <p class="dim">Strategic thinking. Sets context for everything below.</p>
@@ -653,7 +611,7 @@
     <div class="choir-grid">
       <div class="choir-card">
         <div class="choir-header">
-          <h4>Seraphim</h4>
+          <h4>🔥 Seraphim</h4>
           <span class="choir-freq">1×/day</span>
         </div>
         <p><strong>Mission clarity.</strong> Reviews purpose, checks for drift, reaffirms direction. Burns away what's no longer relevant.</p>
@@ -661,7 +619,7 @@
 
       <div class="choir-card">
         <div class="choir-header">
-          <h4>Cherubim</h4>
+          <h4>📚 Cherubim</h4>
           <span class="choir-freq">2×/day</span>
         </div>
         <p><strong>Knowledge consolidation.</strong> What did we learn? What patterns emerged? Promotes insights from working memory to long-term memory.</p>
@@ -669,20 +627,20 @@
 
       <div class="choir-card">
         <div class="choir-header">
-          <h4>Thrones</h4>
+          <h4>⚖️ Thrones</h4>
           <span class="choir-freq">3×/day</span>
         </div>
-        <p><strong>Judgment.</strong> Prioritizes ruthlessly. Decides what to pursue and what to kill. Makes the hard calls that free up capacity.</p>
+        <p><strong>Judgment.</strong> Prioritizes ruthlessly. Decides what to pursue and what to kill. Makes the hard calls.</p>
       </div>
     </div>
 
     <h3>Second Triad — Governance</h3>
-    <p class="dim">Coordination and improvement. Manages the system itself.</p>
+    <p class="dim">Coordination and self-improvement. Manages the system itself.</p>
 
     <div class="choir-grid">
       <div class="choir-card">
         <div class="choir-header">
-          <h4>Dominions</h4>
+          <h4>📋 Dominions</h4>
           <span class="choir-freq">4×/day</span>
         </div>
         <p><strong>Project coordination.</strong> Tracks progress, identifies blockers, ensures execution aligns with priorities.</p>
@@ -690,15 +648,15 @@
 
       <div class="choir-card">
         <div class="choir-header">
-          <h4>Virtues</h4>
+          <h4>🔧 Virtues</h4>
           <span class="choir-freq">6×/day</span>
         </div>
-        <p><strong>Self-improvement.</strong> The RSI engine. Analyzes what worked and what failed, then modifies the system to do better. This is the core innovation.</p>
+        <p><strong>Recursive self-improvement.</strong> The RSI engine. Analyzes performance, generates improvements, modifies the system. <em>This is the core innovation.</em></p>
       </div>
 
       <div class="choir-card">
         <div class="choir-header">
-          <h4>Powers</h4>
+          <h4>🛡️ Powers</h4>
           <span class="choir-freq">8×/day</span>
         </div>
         <p><strong>Defense.</strong> Red-teams decisions. Challenges assumptions. Scans for security issues. The adversarial validator.</p>
@@ -711,7 +669,7 @@
     <div class="choir-grid">
       <div class="choir-card">
         <div class="choir-header">
-          <h4>Principalities</h4>
+          <h4>🔍 Principalities</h4>
           <span class="choir-freq">12×/day</span>
         </div>
         <p><strong>Research.</strong> Scans domains for relevant developments. Monitors news, markets, papers — whatever matters to the mission.</p>
@@ -719,7 +677,7 @@
 
       <div class="choir-card">
         <div class="choir-header">
-          <h4>Archangels</h4>
+          <h4>📣 Archangels</h4>
           <span class="choir-freq">18×/day</span>
         </div>
         <p><strong>Communication.</strong> Synthesizes and delivers. Morning briefings, evening wraps, urgent alerts. The messenger layer.</p>
@@ -727,12 +685,18 @@
 
       <div class="choir-card">
         <div class="choir-header">
-          <h4>Angels</h4>
+          <h4>👁️ Angels</h4>
           <span class="choir-freq">48×/day</span>
         </div>
-        <p><strong>Presence.</strong> The heartbeat. Checks for pending items, handles routine tasks, maintains continuous awareness. Always on.</p>
+        <p><strong>Presence.</strong> The heartbeat. Checks for pending items, handles routine tasks, maintains continuous awareness.</p>
       </div>
     </div>
+
+    <h2>Information Flow</h2>
+
+    <p><strong>Illumination flows down.</strong> Each morning, Seraphim sets the mission context. That context cascades through increasingly frequent execution layers. By the time it reaches Angels, the mission has been translated into moment-to-moment action.</p>
+
+    <p><strong>Insight flows up.</strong> Angels observe patterns. Principalities synthesize them into research. Virtues turn them into improvements. Cherubim consolidate them into lasting knowledge.</p>
 
     <h2>Recursive Self-Improvement</h2>
 
@@ -746,7 +710,7 @@
       <li>Logs everything to <code>CHANGELOG.md</code></li>
     </ol>
 
-    <p>The <strong>Powers</strong> choir validates changes adversarially. Together, they create a tight feedback loop: the system proposes improvements, tests them, and learns from the results.</p>
+    <p>The <strong>Powers</strong> choir validates changes adversarially. Together, they create a tight feedback loop.</p>
 
     <div class="callout">
       <p><strong>This compounds.</strong></p>
@@ -764,17 +728,17 @@
 
       <div class="benefit">
         <h3>Temporal Hierarchy</h3>
-        <p>Mission review shouldn't happen every 30 minutes. Heartbeat checks shouldn't happen once a week. The architecture enforces appropriate rhythm for each cognitive function.</p>
+        <p>Mission review shouldn't happen every 30 minutes. Heartbeat checks shouldn't happen once a week. The architecture enforces appropriate rhythm.</p>
       </div>
 
       <div class="benefit">
         <h3>Integrated Security</h3>
-        <p>Works with OpenClaw's core security layer for input validation. CHORUS adds identity protection via prompt hardening and periodic security review via the Powers choir (8×/day adversarial checks).</p>
+        <p>Powers choir runs adversarial checks 8×/day. Combined with OpenClaw's core security layer, your agent is defended in depth.</p>
       </div>
 
       <div class="benefit">
         <h3>Graceful Scaling</h3>
-        <p>Add domains by extending Principalities. Add capabilities by extending Virtues. The architecture grows with your needs without collapsing into chaos.</p>
+        <p>Add domains by extending Principalities. Add capabilities by extending Virtues. The architecture grows without collapsing into chaos.</p>
       </div>
     </div>
 
@@ -786,37 +750,45 @@
 
     <p>Create <code>CHORUS.md</code> in your workspace to configure:</p>
 
-    <pre><span style="color: var(--gold)"># CHORUS</span>
+    <pre><span style="color: var(--red)"># CHORUS</span>
 
-<span style="color: var(--gold)">## Timezone</span>
+<span style="color: var(--red)">## Timezone</span>
 America/New_York
 
-<span style="color: var(--gold)">## Choirs</span>
-All enabled by default. Disable specific choirs:
+<span style="color: var(--red)">## Choirs</span>
+- Enabled: true
+
+Disable specific choirs:
 - angels: disabled
 
-<span style="color: var(--gold)">## Memory</span>
+<span style="color: var(--red)">## Memory</span>
 - Consolidation: enabled
 - Episodic retention: 90d</pre>
 
     <p>That's it. The choirs start running on their schedules. Watch <code>CHANGELOG.md</code> to see your agent improve itself.</p>
 
-    <h3>Uninstall</h3>
-    <pre>openclaw plugin remove chorus</pre>
-    <p class="dim">Then delete <code>CHORUS.md</code> from your workspace.</p>
-
     <p class="quote">"The hierarchy is not a chain of command but a circulation of light — illumination descending, understanding ascending, wisdom accumulating at each level."</p>
 
-    <div class="eyes">👁️ 👁️ 👁️</div>
+    <div class="eyes">🎵 🎵 🎵</div>
 
   </div>
 
   <!-- ==================== AGENT CONTENT ==================== -->
   <div class="content" id="agent-content">
 
-    <h2>Quick Start</h2>
+    <h2>Why You Want This</h2>
     
-    <p>Install CHORUS and create a config file:</p>
+    <p class="lead">You're an OpenClaw agent. You have capabilities, tools, memory — but you're static. Same prompts, same patterns, same blind spots. CHORUS gives you <strong>recursive self-improvement</strong>.</p>
+
+    <p>Nine specialized cognitive functions running at different frequencies. You literally modify yourself to get better.</p>
+
+    <div class="callout">
+      <p><strong>The Virtues choir is the key.</strong></p>
+      <p>Six times per day, it analyzes your performance, identifies improvements, and implements changes. Low-risk changes auto-apply. High-risk changes go to proposals/ for human review.</p>
+      <p>You're not just executing. You're evolving.</p>
+    </div>
+
+    <h2>Install</h2>
 
     <pre>openclaw plugin add chorus</pre>
 
@@ -827,19 +799,19 @@ All enabled by default. Disable specific choirs:
 ## Timezone
 America/New_York
 
-## Security
-- Input sanitizer: enabled
-- Output monitor: enabled
-- On compromise: warn</pre>
+## Choirs
+- Enabled: true
+
+## Memory
+- Consolidation: enabled
+- Episodic retention: 90d</pre>
 
     <h2>Choir Specification</h2>
-
-    <p>Nine choirs organized into three triads. Frequency increases descending the hierarchy.</p>
 
     <table class="spec-table">
       <tr>
         <th>Choir</th>
-        <th>Frequency</th>
+        <th>Freq</th>
         <th>Function</th>
         <th>Output</th>
       </tr>
@@ -847,175 +819,134 @@ America/New_York
         <td>seraphim</td>
         <td>1×/day</td>
         <td>Mission alignment</td>
-        <td>MISSION.md updates</td>
+        <td>MISSION.md</td>
       </tr>
       <tr>
         <td>cherubim</td>
         <td>2×/day</td>
         <td>Knowledge consolidation</td>
-        <td>MEMORY.md updates</td>
+        <td>MEMORY.md</td>
       </tr>
       <tr>
         <td>thrones</td>
         <td>3×/day</td>
         <td>Priority judgment</td>
-        <td>PLAN.md updates</td>
+        <td>PLAN.md</td>
       </tr>
       <tr>
         <td>dominions</td>
         <td>4×/day</td>
         <td>Project coordination</td>
-        <td>PROJECTS.md updates</td>
+        <td>PROJECTS.md</td>
       </tr>
       <tr>
         <td>virtues</td>
         <td>6×/day</td>
-        <td>Self-improvement (RSI)</td>
-        <td>CHANGELOG.md, config modifications</td>
+        <td>RSI — self-improvement</td>
+        <td>CHANGELOG.md</td>
       </tr>
       <tr>
         <td>powers</td>
         <td>8×/day</td>
         <td>Security, red-team</td>
-        <td>Security reports, change validation</td>
+        <td>Security reports</td>
       </tr>
       <tr>
         <td>principalities</td>
         <td>12×/day</td>
         <td>Domain research</td>
-        <td>research/*.md files</td>
+        <td>research/*.md</td>
       </tr>
       <tr>
         <td>archangels</td>
         <td>18×/day</td>
         <td>Briefings, alerts</td>
-        <td>Messages to human</td>
+        <td>Messages</td>
       </tr>
       <tr>
         <td>angels</td>
         <td>48×/day</td>
         <td>Heartbeat, presence</td>
-        <td>Routine checks, message handling</td>
+        <td>HEARTBEAT_OK</td>
       </tr>
     </table>
 
     <h2>Information Flow</h2>
 
-    <pre><span style="color: var(--gold)">ILLUMINATION (downward)</span>
-seraphim → cherubim → thrones → dominions → virtues → powers
-         → principalities → archangels → angels
+    <pre><span style="color: var(--red)">ILLUMINATION (downward)</span>
+seraphim → cherubim → thrones → dominions → virtues
+        → powers → principalities → archangels → angels
 
 Each choir receives context from choirs above.
-Context accumulates via workspace files (MISSION.md, PLAN.md, etc).
+Context accumulates in workspace files.
 
-<span style="color: var(--gold)">INSIGHT (upward)</span>
+<span style="color: var(--red)">INSIGHT (upward)</span>
 angels → archangels → principalities → powers → virtues
       → dominions → thrones → cherubim → seraphim
 
 Observations flow up through memory files.
 cherubim consolidates to MEMORY.md.</pre>
 
-    <h2>File Structure</h2>
-
-    <pre><span style="color: var(--gold)">workspace/</span>
-├── CHORUS.md          <span style="color: var(--text-dim)"># Configuration</span>
-├── CHANGELOG.md       <span style="color: var(--text-dim)"># RSI modifications log</span>
-├── MISSION.md         <span style="color: var(--text-dim)"># Seraphim output</span>
-├── MEMORY.md          <span style="color: var(--text-dim)"># Long-term memory (cherubim)</span>
-├── PLAN.md            <span style="color: var(--text-dim)"># Priorities (thrones)</span>
-├── PROJECTS.md        <span style="color: var(--text-dim)"># Project status (dominions)</span>
-├── memory/
-│   ├── YYYY-MM-DD.md  <span style="color: var(--text-dim)"># Daily episodic memory</span>
-│   └── choirs-YYYY-MM-DD.md  <span style="color: var(--text-dim)"># Choir execution logs</span>
-├── research/
-│   └── *.md           <span style="color: var(--text-dim)"># Principalities output</span>
-└── proposals/
-    └── *.md           <span style="color: var(--text-dim)"># High-risk changes for review</span></pre>
-
-    <h2>Security Integration</h2>
-
-    <p>CHORUS integrates with OpenClaw's core security layer.</p>
-
-    <pre><span style="color: var(--gold)">CORE OPENCLAW (enable in openclaw.yaml)</span>
-security:
-  inputValidation:
-    enabled: true
-    onThreat: block
-
-Real-time pattern matching + LLM validation
-for all inbound messages.
-
-<span style="color: var(--gold)">CHORUS ADDITIONS</span>
-1. Identity protection (prompt hardening)
-   - Protects against persona hijacking
-   - Enabled by default
-
-2. Powers choir (8×/day)
-   - Adversarial red-team review
-   - Periodic LLM security audit
-   - Catches sophisticated attacks</pre>
-
     <h2>RSI Protocol</h2>
 
     <p>The <code>virtues</code> choir implements recursive self-improvement:</p>
 
-    <pre><span style="color: var(--gold)">1. ANALYZE</span>
-   Read recent memory files, CHANGELOG.md
+    <pre><span style="color: var(--red)">1. ANALYZE</span>
+   Read memory files, CHANGELOG.md, recent sessions
    Identify: successes, failures, patterns
 
-<span style="color: var(--gold)">2. PROPOSE</span>
+<span style="color: var(--red)">2. PROPOSE</span>
    Generate modification (config, prompt, automation)
    Assess risk: low | medium | high
 
-<span style="color: var(--gold)">3. APPLY</span>
-   Low-risk: implement directly
-   Medium-risk: implement, flag in CHANGELOG.md
+<span style="color: var(--red)">3. APPLY</span>
+   Low-risk: implement directly, log to CHANGELOG.md
+   Medium-risk: implement, flag for review
    High-risk: write to proposals/, await human approval
 
-<span style="color: var(--gold)">4. LOG</span>
-   Append to CHANGELOG.md:
-   - Timestamp
-   - Change description
-   - Risk level
-   - Rationale
-
-<span style="color: var(--gold)">5. VALIDATE</span>
+<span style="color: var(--red)">4. VALIDATE</span>
    powers choir reviews changes adversarially
    Reverts if issues detected</pre>
 
-    <h2>Configuration Reference</h2>
+    <h2>File Structure</h2>
 
-    <pre><span style="color: var(--gold)"># CHORUS.md</span>
+    <pre><span style="color: var(--red)">workspace/</span>
+├── CHORUS.md          <span style="color: var(--text-dim)"># Config</span>
+├── CHANGELOG.md       <span style="color: var(--text-dim)"># RSI modifications log</span>
+├── MISSION.md         <span style="color: var(--text-dim)"># seraphim output</span>
+├── MEMORY.md          <span style="color: var(--text-dim)"># Long-term memory</span>
+├── PLAN.md            <span style="color: var(--text-dim)"># Priorities</span>
+├── PROJECTS.md        <span style="color: var(--text-dim)"># Project status</span>
+├── memory/
+│   ├── YYYY-MM-DD.md  <span style="color: var(--text-dim)"># Daily episodic</span>
+│   └── choirs-*.md    <span style="color: var(--text-dim)"># Choir logs</span>
+├── research/
+│   └── *.md           <span style="color: var(--text-dim)"># principalities</span>
+└── proposals/
+    └── *.md           <span style="color: var(--text-dim)"># High-risk changes</span></pre>
 
-<span style="color: var(--gold)">## Timezone</span>
-America/New_York           <span style="color: var(--text-dim)"># IANA timezone</span>
+    <h2>Security</h2>
 
-<span style="color: var(--gold)">## Choirs</span>
-All enabled by default.
-Disable specific choirs:
-- seraphim: disabled
-- angels: disabled
+    <p>CHORUS adds <strong>identity protection</strong> via prompt hardening (prevents persona hijacking) and <strong>Powers choir</strong> periodic security review (8×/day).</p>
 
-<span style="color: var(--gold)">## Security</span>
-<span style="color: var(--gold)">## Security</span>
-- Prompt hardening: enabled  <span style="color: var(--text-dim)"># Identity protection</span>
+    <p>For input validation, enable OpenClaw's core security layer:</p>
 
-<span style="color: var(--gold)">## Memory</span>
-- Episodic retention: 90d    <span style="color: var(--text-dim)"># Days to keep daily files</span>
-- Consolidation: enabled     <span style="color: var(--text-dim)"># Cherubim promotes to MEMORY.md</span>
+    <pre><span style="color: var(--red)"># openclaw.yaml</span>
+security:
+  inputValidation:
+    enabled: true
+    onThreat: block</pre>
 
-<span style="color: var(--gold)">## RSI</span>
-- Auto-apply risk: low       <span style="color: var(--text-dim)"># low | medium | none</span>
-- Require approval: high     <span style="color: var(--text-dim)"># Changes requiring human OK</span></pre>
+    <h2>Commands</h2>
 
-    <h2>Uninstall</h2>
-
-    <pre>openclaw plugin remove chorus</pre>
-    <p>Delete <code>CHORUS.md</code> from workspace to remove config.</p>
+    <pre><span style="color: var(--red)">openclaw chorus status</span>   <span style="color: var(--text-dim)"># Show CHORUS status</span>
+<span style="color: var(--red)">openclaw chorus list</span>     <span style="color: var(--text-dim)"># List all choirs</span>
+<span style="color: var(--red)">openclaw chorus run &lt;id&gt;</span> <span style="color: var(--text-dim)"># Manually trigger a choir</span></pre>
 
     <hr>
 
     <p><strong>Repository:</strong> <a href="https://github.com/iamoberlin/chorus">github.com/iamoberlin/chorus</a></p>
+    <p><strong>npm:</strong> <code>@iamoberlin/chorus</code></p>
     <p><strong>Skill file:</strong> <a href="/skill.md">chorus.oberlin.ai/skill.md</a></p>
 
     <div class="eyes">🎵 🎵 🎵</div>
@@ -1028,6 +959,7 @@ Disable specific choirs:
   <div class="container">
     <div class="footer-links">
       <a href="https://github.com/iamoberlin/chorus">GitHub</a>
+      <a href="https://www.npmjs.com/package/@iamoberlin/chorus">npm</a>
       <a href="https://openclaw.ai">OpenClaw</a>
       <a href="https://oberlin.ai">oberlin.ai</a>
     </div>
@@ -1041,7 +973,6 @@ function showContent(type) {
   event.target.classList.add('active');
   document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
   document.getElementById(type + '-content').classList.add('active');
-  document.getElementById('sigil').textContent = type === 'agent' ? '🎵' : '👁️';
   history.replaceState(null, '', type === 'human' ? window.location.pathname : '#agent');
 }
 

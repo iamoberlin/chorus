@@ -1,7 +1,7 @@
 {
   "name": "@iamoberlin/chorus",
-  "version": "0.1.1",
-  "description": "Agent autonomy, security, and memory for OpenClaw. Config via CHORUS.md.",
+  "version": "0.2.0",
+  "description": "Nine Choirs architecture for recursive self-improvement. Your OpenClaw agent gets better every day.",
   "author": "Oberlin Stands <oberlin.stands@icloud.com>",
   "license": "MIT",
   "repository": {
@@ -16,9 +16,11 @@
     "openclaw",
     "plugin",
     "agent",
-    "security",
-    "memory",
-    "autonomy"
+    "rsi",
+    "recursive-self-improvement",
+    "nine-choirs",
+    "cognitive-architecture",
+    "ai-agent"
   ],
   "type": "module",
   "main": "index.ts",

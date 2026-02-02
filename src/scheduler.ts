@@ -2,11 +2,12 @@
  * CHORUS Choir Scheduler
  *
  * Executes choirs on schedule, manages illumination flow.
+ * Each choir runs at its defined frequency, with context passing between them.
  */
 
 import type { OpenClawPluginService, PluginLogger } from "openclaw/plugin-sdk";
 import type { ChorusConfig } from "./config.js";
-import { CHOIRS, shouldRunChoir, type Choir } from "./choirs.js";
+import { CHOIRS, shouldRunChoir, CASCADE_ORDER, type Choir } from "./choirs.js";
 
 interface ChoirContext {
   choirId: string;
@@ -14,13 +15,25 @@ interface ChoirContext {
   timestamp: Date;
 }
 
+interface ChoirRunState {
+  lastRun?: Date;
+  lastOutput?: string;
+  runCount: number;
+}
+
 export function createChoirScheduler(
   config: ChorusConfig,
   log: PluginLogger,
-  api: any // OpenClawPluginApi - using any to avoid import issues
+  api: any // OpenClawPluginApi
 ): OpenClawPluginService {
-  let intervals: NodeJS.Timeout[] = [];
+  let checkInterval: NodeJS.Timeout | null = null;
   const contextStore: Map<string, ChoirContext> = new Map();
+  const runState: Map<string, ChoirRunState> = new Map();
+
+  // Initialize run state for all choirs
+  for (const choirId of Object.keys(CHOIRS)) {
+    runState.set(choirId, { runCount: 0 });
+  }
 
   // Get context from upstream choirs
   function getUpstreamContext(choir: Choir): string {
@@ -31,7 +44,7 @@ export function createChoirScheduler(
         contexts.push(`[${ctx.choirId}]: ${ctx.output}`);
       }
     }
-    return contexts.length > 0 ? contexts.join("\n\n") : "(no upstream context)";
+    return contexts.length > 0 ? contexts.join("\n\n") : "(no upstream context yet)";
   }
 
   // Build the prompt with context injected
@@ -42,7 +55,7 @@ export function createChoirScheduler(
     for (const upstreamId of choir.receivesFrom) {
       const placeholder = `{${upstreamId}_context}`;
       const ctx = contextStore.get(upstreamId);
-      const contextText = ctx ? ctx.output : "(no context from " + upstreamId + ")";
+      const contextText = ctx ? ctx.output : "(awaiting context from " + upstreamId + ")";
       prompt = prompt.replace(placeholder, contextText);
     }
 
@@ -51,13 +64,14 @@ export function createChoirScheduler(
 
   // Execute a choir
   async function executeChoir(choir: Choir): Promise<void> {
-    log.info(`[chorus] Executing ${choir.name} (${choir.id})`);
+    const state = runState.get(choir.id) || { runCount: 0 };
+
+    log.info(`[chorus] ${choir.emoji} Executing ${choir.name} (run #${state.runCount + 1})`);
 
     try {
       const prompt = buildPrompt(choir);
 
       // Use OpenClaw's session system to run an agent turn
-      // This creates an isolated session for the choir
       const result = await api.runAgentTurn?.({
         sessionLabel: `chorus:${choir.id}`,
         message: prompt,
@@ -74,17 +88,20 @@ export function createChoirScheduler(
         timestamp: new Date(),
       });
 
-      log.info(`[chorus] ${choir.name} completed`);
+      // Update run state
+      runState.set(choir.id, {
+        lastRun: new Date(),
+        lastOutput: output.slice(0, 500),
+        runCount: state.runCount + 1,
+      });
 
-      // If choir passes to others and they're due, trigger them
-      for (const downstreamId of choir.passesTo) {
-        const downstream = CHOIRS[downstreamId];
-        if (downstream && config.choirs.overrides[downstreamId] !== false) {
-          // Don't immediately trigger - let their schedule handle it
-          // But mark that illumination is ready
-          log.debug(`[chorus] Illumination ready for ${downstreamId}`);
-        }
+      log.info(`[chorus] ${choir.emoji} ${choir.name} completed`);
+
+      // Log illumination flow
+      if (choir.passesTo.length > 0) {
+        log.debug(`[chorus] Illumination ready for: ${choir.passesTo.join(", ")}`);
       }
+
     } catch (error) {
       log.error(`[chorus] ${choir.name} failed: ${error}`);
     }
@@ -94,19 +111,19 @@ export function createChoirScheduler(
   async function checkAndRunChoirs(): Promise<void> {
     const now = new Date();
 
-    for (const [choirId, choir] of Object.entries(CHOIRS)) {
+    // Check choirs in cascade order (important for illumination flow)
+    for (const choirId of CASCADE_ORDER) {
+      const choir = CHOIRS[choirId];
+      if (!choir) continue;
+
       // Check if enabled
-      if (config.choirs.overrides[choirId] === false) continue;
+      if (config.choirs.overrides[choirId] === false) {
+        continue;
+      }
 
-      // Check if due
-      if (shouldRunChoir(choir, now)) {
-        // Avoid running the same choir multiple times in the same window
-        const lastRun = contextStore.get(choirId)?.timestamp;
-        if (lastRun) {
-          const minutesSinceLastRun = (now.getTime() - lastRun.getTime()) / 1000 / 60;
-          if (minutesSinceLastRun < 30) continue; // Don't run again within 30 min
-        }
-
+      // Check if due based on interval
+      const state = runState.get(choirId);
+      if (shouldRunChoir(choir, now, state?.lastRun)) {
         await executeChoir(choir);
       }
     }
@@ -117,35 +134,37 @@ export function createChoirScheduler(
 
     start: () => {
       if (!config.choirs.enabled) {
-        log.info("[chorus] Scheduler disabled");
+        log.info("[chorus] Choir scheduler disabled (enable in CHORUS.md)");
         return;
       }
 
-      log.info("[chorus] Starting choir scheduler");
+      log.info("[chorus] 🎵 Starting Nine Choirs scheduler");
+      log.info("[chorus] Frequencies: Seraphim 1×/day → Angels 48×/day");
 
       // Check for due choirs every minute
-      const checkInterval = setInterval(() => {
+      checkInterval = setInterval(() => {
         checkAndRunChoirs().catch((err) => {
           log.error(`[chorus] Scheduler error: ${err}`);
         });
       }, 60 * 1000);
 
-      intervals.push(checkInterval);
+      // Run initial check after a short delay
+      setTimeout(() => {
+        log.info("[chorus] Running initial choir check...");
+        checkAndRunChoirs().catch((err) => {
+          log.error(`[chorus] Initial check error: ${err}`);
+        });
+      }, 5000);
 
-      // Run initial check
-      checkAndRunChoirs().catch((err) => {
-        log.error(`[chorus] Initial check error: ${err}`);
-      });
-
-      log.info("[chorus] Scheduler started");
+      log.info("[chorus] 🎵 Scheduler active");
     },
 
     stop: () => {
-      log.info("[chorus] Stopping scheduler");
-      for (const interval of intervals) {
-        clearInterval(interval);
+      log.info("[chorus] Stopping choir scheduler");
+      if (checkInterval) {
+        clearInterval(checkInterval);
+        checkInterval = null;
       }
-      intervals = [];
       contextStore.clear();
     },
   };
