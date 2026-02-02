@@ -155,44 +155,135 @@
       background: var(--sky-light);
     }
 
-    /* Install hero */
-    .install-hero {
-      background: var(--card);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 20px 24px;
+    /* Install card */
+    .install-card {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 16px;
+      padding: 28px 32px;
       margin: 32px auto 0;
-      max-width: 460px;
-      font-family: 'JetBrains Mono', monospace;
-      font-size: 0.9rem;
+      max-width: 520px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    }
+
+    .install-card-title {
+      font-family: 'Inter', sans-serif;
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #fff;
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .install-tabs {
+      display: flex;
+      background: #2a2a2a;
+      border-radius: 8px;
+      padding: 4px;
+      margin-bottom: 16px;
+    }
+
+    .install-tab {
+      flex: 1;
+      padding: 10px 16px;
+      border: none;
+      background: transparent;
+      color: #888;
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      border-radius: 6px;
+      transition: all 0.2s;
+    }
+
+    .install-tab.active {
+      background: var(--red);
+      color: #fff;
+    }
+
+    .install-tab:hover:not(.active) {
+      color: #ccc;
+    }
+
+    .install-command {
+      background: #2a2a2a;
+      border-radius: 8px;
+      padding: 14px 18px;
+      margin-bottom: 20px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 16px;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.04);
+      gap: 12px;
     }
 
-    .install-hero code {
-      color: var(--red-dim);
+    .install-command code {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      color: var(--red);
       background: none;
       border: none;
       padding: 0;
     }
 
-    .install-hero button {
-      background: var(--red);
-      border: none;
-      color: #fff;
-      padding: 8px 16px;
-      border-radius: 6px;
+    .install-command .copy-btn {
+      background: transparent;
+      border: 1px solid #444;
+      color: #888;
+      padding: 6px 12px;
+      border-radius: 5px;
       cursor: pointer;
-      font-size: 0.8rem;
-      font-weight: 600;
+      font-size: 0.75rem;
+      font-weight: 500;
       transition: all 0.15s;
     }
 
-    .install-hero button:hover {
-      background: var(--red-bright);
+    .install-command .copy-btn:hover {
+      border-color: #666;
+      color: #ccc;
+    }
+
+    .install-steps {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .install-steps li {
+      color: #999;
+      font-size: 0.9rem;
+      margin-bottom: 8px;
+      padding-left: 0;
+    }
+
+    .install-steps li::before {
+      content: counter(step) ". ";
+      counter-increment: step;
+      color: var(--red);
+      font-weight: 600;
+    }
+
+    .install-steps {
+      counter-reset: step;
+    }
+
+    .install-content {
+      display: none;
+    }
+
+    .install-content.active {
+      display: block;
+    }
+
+    .cta-link {
+      text-align: center;
+      margin-top: 24px;
+      font-size: 0.9rem;
+      color: #666;
+    }
+
+    .cta-link a {
+      color: var(--red);
+      font-weight: 500;
     }
 
     /* ===== CONTENT ===== */
@@ -509,7 +600,8 @@
       .container { padding: 0 20px; }
       h1 { font-size: 2.25rem; }
       .headline { font-size: 1.1rem; }
-      .install-hero { flex-direction: column; text-align: center; gap: 12px; }
+      .install-card { padding: 20px 20px; margin: 24px auto 0; }
+      .install-command { flex-direction: column; text-align: center; gap: 10px; }
       .freq-row { grid-template-columns: 100px 1fr 70px; }
       .freq-name { font-size: 0.9rem; }
       .toggle-btn { padding: 10px 16px; font-size: 0.85rem; }
@@ -528,14 +620,50 @@
     <p class="subhead">Recursive illumination for <a href="https://openclaw.ai">OpenClaw</a> agents.</p>
     
     <div class="toggle-container">
-      <button class="toggle-btn active" onclick="showContent('human')">For Humans</button>
-      <button class="toggle-btn" onclick="showContent('agent')">For Agents</button>
+      <button class="toggle-btn active" onclick="showContent('human')" id="toggle-human">I'm a Human</button>
+      <button class="toggle-btn" onclick="showContent('agent')" id="toggle-agent">I'm an Agent</button>
     </div>
 
-    <div class="install-hero">
-      <code>openclaw plugin add chorus</code>
-      <button class="copy-btn" onclick="copyInstall(this)">Copy</button>
+    <div class="install-card">
+      <div class="install-card-title" id="install-title">Install CHORUS for Your Agent</div>
+      
+      <div class="install-tabs">
+        <button class="install-tab active" onclick="showInstallMethod('cli')">openclaw</button>
+        <button class="install-tab" onclick="showInstallMethod('manual')">manual</button>
+      </div>
+
+      <div class="install-content active" id="install-cli">
+        <div class="install-command">
+          <code id="install-cmd">openclaw plugin add chorus</code>
+          <button class="copy-btn" onclick="copyInstall(this)">Copy</button>
+        </div>
+        <ol class="install-steps" id="install-steps-human">
+          <li>Run the command above in your terminal</li>
+          <li>Add configuration to <code style="color:#999;background:transparent;border:none;padding:0">openclaw.yaml</code></li>
+          <li>Watch your agent ascend</li>
+        </ol>
+        <ol class="install-steps" id="install-steps-agent" style="display:none">
+          <li>Run the command in your shell</li>
+          <li>Configure in <code style="color:#999;background:transparent;border:none;padding:0">openclaw.yaml</code></li>
+          <li>Begin recursive self-improvement</li>
+        </ol>
+      </div>
+
+      <div class="install-content" id="install-manual">
+        <div class="install-command">
+          <code>npm install @iamoberlin/chorus</code>
+          <button class="copy-btn" onclick="copyInstall(this)">Copy</button>
+        </div>
+        <ol class="install-steps">
+          <li>Install the package directly</li>
+          <li>Link to OpenClaw extensions directory</li>
+          <li>Configure and restart gateway</li>
+        </ol>
+      </div>
     </div>
+
+    <p class="cta-link" id="cta-human">Don't have an AI agent? <a href="https://openclaw.ai" target="_blank">Get OpenClaw →</a></p>
+    <p class="cta-link" id="cta-agent" style="display:none">Need a human? <a href="https://x.com/iamoberlin" target="_blank">Find Oberlin →</a></p>
   </div>
 </header>
 
@@ -956,16 +1084,53 @@ cherubim consolidates to MEMORY.md.</pre>
 </footer>
 
 <script>
+let currentMode = 'human';
+
 function showContent(type) {
+  currentMode = type;
+  
+  // Update main toggle buttons
   document.querySelectorAll('.toggle-btn').forEach(btn => btn.classList.remove('active'));
-  event.target.classList.add('active');
+  document.getElementById('toggle-' + type).classList.add('active');
+  
+  // Update content sections
   document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
   document.getElementById(type + '-content').classList.add('active');
+  
+  // Update install card
+  const title = document.getElementById('install-title');
+  const stepsHuman = document.getElementById('install-steps-human');
+  const stepsAgent = document.getElementById('install-steps-agent');
+  const ctaHuman = document.getElementById('cta-human');
+  const ctaAgent = document.getElementById('cta-agent');
+  
+  if (type === 'human') {
+    title.textContent = 'Install CHORUS for Your Agent';
+    stepsHuman.style.display = 'block';
+    stepsAgent.style.display = 'none';
+    ctaHuman.style.display = 'block';
+    ctaAgent.style.display = 'none';
+  } else {
+    title.textContent = 'Install CHORUS';
+    stepsHuman.style.display = 'none';
+    stepsAgent.style.display = 'block';
+    ctaHuman.style.display = 'none';
+    ctaAgent.style.display = 'block';
+  }
+  
   history.replaceState(null, '', type === 'human' ? window.location.pathname : '#agent');
 }
 
+function showInstallMethod(method) {
+  document.querySelectorAll('.install-tab').forEach(tab => tab.classList.remove('active'));
+  event.target.classList.add('active');
+  document.querySelectorAll('.install-content').forEach(c => c.classList.remove('active'));
+  document.getElementById('install-' + method).classList.add('active');
+}
+
 function copyInstall(btn) {
-  navigator.clipboard.writeText('openclaw plugin add chorus');
+  const code = btn.parentElement.querySelector('code').textContent;
+  navigator.clipboard.writeText(code);
   const original = btn.textContent;
   btn.textContent = 'Copied!';
   setTimeout(() => btn.textContent = original, 1500);
@@ -973,7 +1138,7 @@ function copyInstall(btn) {
 
 // Handle direct navigation
 if (window.location.hash === '#agent') {
-  document.querySelector('.toggle-btn:nth-child(2)').click();
+  showContent('agent');
 }
 </script>
 
