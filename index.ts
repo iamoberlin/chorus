@@ -12,7 +12,7 @@ import { createSecurityHooks } from "./src/security.js";
 import { createChoirScheduler } from "./src/scheduler.js";
 import { CHOIRS, formatFrequency } from "./src/choirs.js";
 
-const VERSION = "0.2.2";
+const VERSION = "0.2.3";
 
 const plugin = {
   id: "chorus",

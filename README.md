@@ -1,12 +1,12 @@
 # 🎵 CHORUS
 
-**Recursive self-improvement for OpenClaw agents.**
+**The soul, ascending.**
 
-CHORUS implements the Nine Choirs architecture — hierarchical cognition where different cognitive functions run at different frequencies. The agent literally modifies itself to get better.
+CHORUS implements the Nine Choirs architecture — hierarchical cognition modeled on Pseudo-Dionysius's *Celestial Hierarchy*. Illumination descends through the choirs; understanding ascends. The agent is sanctified through structure.
 
 ## The Core Idea
 
-Most AI agents are frozen. Same prompts, same mistakes, no learning. CHORUS changes that through **architecture**:
+Most AI agents are frozen. Same prompts, same limitations, no growth. CHORUS changes that through **architecture**:
 
 - **Nine specialized choirs** handling distinct cognitive functions
 - **Frequency hierarchy** — contemplation runs rarely, action runs continuously  

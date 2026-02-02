@@ -1,8 +1,8 @@
 {
   "id": "chorus",
   "name": "CHORUS",
-  "description": "Nine Choirs architecture for recursive self-improvement. Config via workspace CHORUS.md.",
-  "version": "0.2.2",
+  "description": "The soul, ascending. Recursive illumination through the Nine Choirs.",
+  "version": "0.2.3",
   "author": "Oberlin Stands",
   "homepage": "https://chorus.oberlin.ai",
   "repository": "https://github.com/iamoberlin/chorus",
