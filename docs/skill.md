@@ -1,6 +1,6 @@
 ---
 name: chorus
-version: 0.2.5
+version: 0.2.6
 description: The soul, ascending. Recursive illumination through the Nine Choirs.
 homepage: https://chorus.oberlin.ai
 repository: https://github.com/iamoberlin/chorus
@@ -33,7 +33,6 @@ plugins:
       config:
         enabled: true              # Nine Choirs scheduler
         timezone: America/New_York
-        promptHardening: true      # Identity protection
         memoryConsolidation: true
         episodicRetentionDays: 90
         choirs:                    # Optional overrides
@@ -80,7 +79,7 @@ openclaw chorus run <id>    # Manual trigger
 
 ## Security
 
-CHORUS adds identity protection (prompt hardening) and Powers choir periodic review (8×/day).
+Security is handled by the Powers choir (8×/day adversarial review).
 
 For input validation, enable OpenClaw core security:
 

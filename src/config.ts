@@ -6,10 +6,6 @@
  */
 
 export interface ChorusConfig {
-  security: {
-    /** Add identity protection to system prompt. Default: true */
-    promptHardening: boolean;
-  };
   choirs: {
     enabled: boolean;
     timezone: string;
@@ -25,7 +21,6 @@ export interface ChorusConfig {
 export interface ChorusPluginConfig {
   enabled?: boolean;
   timezone?: string;
-  promptHardening?: boolean;
   memoryConsolidation?: boolean;
   episodicRetentionDays?: number;
   /** Individual choir overrides */
@@ -33,9 +28,6 @@ export interface ChorusPluginConfig {
 }
 
 const DEFAULT_CONFIG: ChorusConfig = {
-  security: {
-    promptHardening: true,
-  },
   choirs: {
     enabled: false,
     timezone: "America/New_York",
@@ -64,11 +56,6 @@ export function loadChorusConfig(pluginConfig?: ChorusPluginConfig): ChorusConfi
   }
   if (pluginConfig.choirs) {
     config.choirs.overrides = pluginConfig.choirs;
-  }
-
-  // Security
-  if (pluginConfig.promptHardening !== undefined) {
-    config.security.promptHardening = pluginConfig.promptHardening;
   }
 
   // Memory

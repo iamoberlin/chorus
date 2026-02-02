@@ -31,7 +31,6 @@ plugins:
       config:
         enabled: true              # Enable Nine Choirs scheduler
         timezone: America/New_York
-        promptHardening: true      # Identity protection
         memoryConsolidation: true  # Cherubim consolidates to MEMORY.md
         episodicRetentionDays: 90
         choirs:                    # Optional: disable specific choirs
@@ -110,9 +109,7 @@ openclaw chorus run <id>    # Manually trigger a choir
 
 ## Security
 
-CHORUS adds:
-- **Identity protection** (prompt hardening) — prevents persona hijacking
-- **Powers choir** (8×/day) — periodic adversarial security review
+CHORUS security is handled by the **Powers choir** (8×/day adversarial review).
 
 For input validation, use OpenClaw's core security layer:
 
