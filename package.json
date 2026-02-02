@@ -1,6 +1,6 @@
 {
   "name": "@iamoberlin/chorus",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Agent autonomy, security, and memory for OpenClaw. Config via CHORUS.md.",
   "author": "Oberlin Stands <oberlin.stands@icloud.com>",
   "license": "MIT",
