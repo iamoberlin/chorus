@@ -1,13 +1,45 @@
 {
   "id": "chorus",
   "name": "CHORUS",
-  "description": "Agent autonomy, security, and memory for OpenClaw. Config via CHORUS.md.",
-  "version": "0.1.0",
+  "description": "Nine Choirs architecture for recursive self-improvement. Config via workspace CHORUS.md.",
+  "version": "0.2.2",
   "author": "Oberlin Stands",
-  "homepage": "https://github.com/iamoberlin/chorus",
+  "homepage": "https://chorus.oberlin.ai",
+  "repository": "https://github.com/iamoberlin/chorus",
+  "keywords": ["cognitive-architecture", "rsi", "self-improvement", "nine-choirs"],
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
-    "properties": {}
+    "description": "CHORUS uses workspace-based config (CHORUS.md) for agent-modifiable settings. These options override workspace config.",
+    "properties": {
+      "workspaceConfigPath": {
+        "type": "string",
+        "description": "Path to CHORUS.md config file (default: <workspace>/CHORUS.md)"
+      },
+      "choirsEnabled": {
+        "type": "boolean",
+        "description": "Override to enable/disable choir scheduler"
+      },
+      "promptHardening": {
+        "type": "boolean",
+        "description": "Override to enable/disable identity protection"
+      }
+    }
+  },
+  "uiHints": {
+    "workspaceConfigPath": {
+      "label": "Config Path",
+      "placeholder": "CHORUS.md",
+      "advanced": true,
+      "help": "Path to CHORUS.md in workspace (usually auto-detected)"
+    },
+    "choirsEnabled": {
+      "label": "Enable Choirs",
+      "help": "Master toggle for Nine Choirs scheduler (overrides CHORUS.md)"
+    },
+    "promptHardening": {
+      "label": "Prompt Hardening",
+      "help": "Identity protection via system prompt injection (overrides CHORUS.md)"
+    }
   }
 }

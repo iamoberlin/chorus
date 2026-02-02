@@ -1,7 +1,12 @@
 /**
  * CHORUS Configuration
  *
- * Parses CHORUS.md from agent workspace.
+ * Hybrid config: workspace CHORUS.md + openclaw.yaml overrides
+ * 
+ * Priority (highest to lowest):
+ * 1. openclaw.yaml plugins.entries.chorus.config
+ * 2. CHORUS.md in workspace
+ * 3. Defaults
  */
 
 import { readFileSync, existsSync } from "node:fs";
@@ -26,6 +31,13 @@ export interface ChorusConfig {
   };
 }
 
+/** Plugin config from openclaw.yaml */
+export interface ChorusPluginConfig {
+  workspaceConfigPath?: string;
+  choirsEnabled?: boolean;
+  promptHardening?: boolean;
+}
+
 const DEFAULT_CONFIG: ChorusConfig = {
   security: {
     promptHardening: true,
@@ -44,18 +56,41 @@ const DEFAULT_CONFIG: ChorusConfig = {
   },
 };
 
-export function loadChorusConfig(workspaceDir?: string): ChorusConfig {
-  if (!workspaceDir) return DEFAULT_CONFIG;
+/**
+ * Load CHORUS config with openclaw.yaml overrides
+ */
+export function loadChorusConfig(
+  workspaceDir?: string,
+  pluginConfig?: ChorusPluginConfig
+): ChorusConfig {
+  // Start with defaults
+  let config = structuredClone(DEFAULT_CONFIG);
 
-  const configPath = join(workspaceDir, "CHORUS.md");
-  if (!existsSync(configPath)) return DEFAULT_CONFIG;
+  // Load from CHORUS.md if it exists
+  const configPath = pluginConfig?.workspaceConfigPath
+    ? pluginConfig.workspaceConfigPath
+    : workspaceDir
+      ? join(workspaceDir, "CHORUS.md")
+      : null;
 
-  try {
-    const content = readFileSync(configPath, "utf-8");
-    return parseChorusMarkdown(content);
-  } catch {
-    return DEFAULT_CONFIG;
+  if (configPath && existsSync(configPath)) {
+    try {
+      const content = readFileSync(configPath, "utf-8");
+      config = parseChorusMarkdown(content);
+    } catch {
+      // Keep defaults on parse error
+    }
   }
+
+  // Apply openclaw.yaml overrides (highest priority)
+  if (pluginConfig?.choirsEnabled !== undefined) {
+    config.choirs.enabled = pluginConfig.choirsEnabled;
+  }
+  if (pluginConfig?.promptHardening !== undefined) {
+    config.security.promptHardening = pluginConfig.promptHardening;
+  }
+
+  return config;
 }
 
 function parseChorusMarkdown(content: string): ChorusConfig {
@@ -69,7 +104,7 @@ function parseChorusMarkdown(content: string): ChorusConfig {
   config.choirs.timezone = parseString(content, "Timezone", "America/New_York");
   config.choirs.maxConcurrent = parseInt(parseString(content, "Max concurrent", "1"), 10);
 
-  // Parse choir overrides
+  // Parse choir overrides (individual choir enable/disable)
   for (const name of ["angels", "archangels", "principalities", "powers", "virtues", "dominions", "thrones", "cherubim", "seraphim"]) {
     const value = parseBoolOptional(content, name);
     if (value !== null) config.choirs.overrides[name] = value;

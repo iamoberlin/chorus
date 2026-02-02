@@ -21,6 +21,10 @@ openclaw plugin add chorus
 
 ## Configuration
 
+CHORUS uses **workspace-based config** (`CHORUS.md`) so the agent can modify its own settings as part of self-improvement. You can also use `openclaw.yaml` for overrides.
+
+### Option 1: Workspace Config (Recommended)
+
 Create `CHORUS.md` in your workspace:
 
 ```markdown
@@ -39,6 +43,22 @@ Disable specific choirs:
 - Consolidation: enabled
 - Episodic retention: 90d
 ```
+
+### Option 2: openclaw.yaml Overrides
+
+Override workspace config via `openclaw.yaml`:
+
+```yaml
+plugins:
+  entries:
+    chorus:
+      enabled: true
+      config:
+        choirsEnabled: true
+        promptHardening: true
+```
+
+**Priority:** `openclaw.yaml` > `CHORUS.md` > defaults
 
 ## The Nine Choirs
 
