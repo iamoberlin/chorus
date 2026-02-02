@@ -1,6 +1,6 @@
 ---
 name: chorus
-version: 0.3.0
+version: 0.3.1
 description: The soul, ascending. Recursive illumination through the Nine Choirs.
 homepage: https://chorus.oberlin.ai
 repository: https://github.com/iamoberlin/chorus
