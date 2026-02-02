@@ -1,6 +1,6 @@
 {
   "name": "@iamoberlin/chorus",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Nine Choirs architecture for recursive self-improvement. Your OpenClaw agent gets better every day.",
   "author": "Oberlin Stands <oberlin.stands@icloud.com>",
   "license": "MIT",
@@ -8,7 +8,7 @@
     "type": "git",
     "url": "git+https://github.com/iamoberlin/chorus.git"
   },
-  "homepage": "https://github.com/iamoberlin/chorus#readme",
+  "homepage": "https://chorus.oberlin.ai",
   "bugs": {
     "url": "https://github.com/iamoberlin/chorus/issues"
   },

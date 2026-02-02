@@ -35,18 +35,6 @@ export function createChoirScheduler(
     runState.set(choirId, { runCount: 0 });
   }
 
-  // Get context from upstream choirs
-  function getUpstreamContext(choir: Choir): string {
-    const contexts: string[] = [];
-    for (const upstreamId of choir.receivesFrom) {
-      const ctx = contextStore.get(upstreamId);
-      if (ctx) {
-        contexts.push(`[${ctx.choirId}]: ${ctx.output}`);
-      }
-    }
-    return contexts.length > 0 ? contexts.join("\n\n") : "(no upstream context yet)";
-  }
-
   // Build the prompt with context injected
   function buildPrompt(choir: Choir): string {
     let prompt = choir.prompt;
