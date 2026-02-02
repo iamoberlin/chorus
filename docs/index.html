@@ -543,7 +543,7 @@
 
 <header>
   <div class="container">
-    <div class="sigil">👁️</div>
+    <div class="sigil" id="sigil">👁️</div>
     <h1>CHORUS</h1>
     <p class="headline">Your agent gets better every day.</p>
     <p class="subhead">Recursive self-improvement through architecture.</p>
@@ -1018,7 +1018,7 @@ Disable specific choirs:
     <p><strong>Repository:</strong> <a href="https://github.com/iamoberlin/chorus">github.com/iamoberlin/chorus</a></p>
     <p><strong>Skill file:</strong> <a href="/skill.md">chorus.oberlin.ai/skill.md</a></p>
 
-    <div class="eyes">👁️ 👁️ 👁️</div>
+    <div class="eyes">🎵 🎵 🎵</div>
 
   </div>
 
@@ -1041,6 +1041,7 @@ function showContent(type) {
   event.target.classList.add('active');
   document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
   document.getElementById(type + '-content').classList.add('active');
+  document.getElementById('sigil').textContent = type === 'agent' ? '🎵' : '👁️';
   history.replaceState(null, '', type === 'human' ? window.location.pathname : '#agent');
 }
 
