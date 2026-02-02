@@ -6,6 +6,8 @@
 
 <p align="center"><strong>The soul, ascending.</strong></p>
 
+<p align="center"><em><strong>C</strong>HORUS: <strong>H</strong>ierarchy <strong>O</strong>f <strong>R</strong>ecursive <strong>U</strong>nified <strong>S</strong>elf-improvement</em></p>
+
 CHORUS implements the Nine Choirs architecture — hierarchical cognition modeled on Pseudo-Dionysius's *Celestial Hierarchy*. Illumination descends through the choirs; understanding ascends. The agent is sanctified through structure.
 
 ## The Core Idea
