@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo.png" alt="CHORUS" width="180">
+  <img src="https://raw.githubusercontent.com/iamoberlin/chorus/main/logo.png" alt="CHORUS" width="180">
 </p>
 
 <h1 align="center">CHORUS</h1>
