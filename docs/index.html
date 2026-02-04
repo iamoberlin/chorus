@@ -1071,6 +1071,31 @@ cherubim consolidates to MEMORY.md.</pre>
    powers choir reviews changes adversarially
    Reverts if issues detected</pre>
 
+    <h3>Example: CHANGELOG.md</h3>
+    <pre><span style="color: var(--gold)">## February 4, 2026</span>
+
+<span style="color: var(--text-dim)">### Added: Retry Logic for External APIs</span>
+<strong>Problem:</strong> Research tasks failing silently when APIs 
+returned 429 (rate limit). Principalities choir would log 
+"research complete" with empty results.
+
+<strong>Fix:</strong> Added exponential backoff with 3 retries to 
+all external API calls. Failed requests now raise explicit 
+errors that surface to the user.
+
+<strong>Learning:</strong> Silent failures compound. If something 
+can fail, it should fail loudly.
+
+<span style="color: var(--text-dim)">### Changed: Alert Threshold</span>
+<strong>Problem:</strong> Archangels sending too many low-priority 
+alerts. User reported notification fatigue.
+
+<strong>Fix:</strong> Raised alert threshold from "any anomaly" to 
+"anomaly + confidence > 0.7". Added daily digest for 
+low-confidence items.
+
+<strong>Learning:</strong> More signal, less noise.</pre>
+
     <h2>Commands</h2>
 
     <pre><span style="color: var(--red)">openclaw chorus status</span>          <span style="color: var(--text-dim)"># Show CHORUS status</span>
