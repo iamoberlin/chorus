@@ -29,8 +29,6 @@ export interface Sense {
 const CHORUS_DIR = join(homedir(), ".chorus");
 const INBOX_DIR = join(CHORUS_DIR, "inbox");
 const PURPOSES_FILE = join(CHORUS_DIR, "purposes.json");
-// Backwards compat: check old file too
-const GOALS_FILE_LEGACY = join(CHORUS_DIR, "goals.json");
 
 // Ensure directories exist
 async function ensureDirs() {
@@ -109,11 +107,9 @@ export const purposesSense: Sense = {
     const signals: Signal[] = [];
 
     try {
-      // Try new file first, fall back to legacy
-      const filePath = existsSync(PURPOSES_FILE) ? PURPOSES_FILE : GOALS_FILE_LEGACY;
-      if (!existsSync(filePath)) return signals;
+      if (!existsSync(PURPOSES_FILE)) return signals;
       
-      const data = await readFile(filePath, "utf-8");
+      const data = await readFile(PURPOSES_FILE, "utf-8");
       const purposes = JSON.parse(data);
       const now = Date.now();
 
@@ -253,17 +249,11 @@ export const timeSense: Sense = {
 // Export all senses
 export const ALL_SENSES: Sense[] = [inboxSense, purposesSense, timeSense];
 
-// Utility to get purposes file path (with migration support)
+// Utility to get purposes file path
 export function getPurposesPath(): string {
-  // If new file exists, use it; otherwise use legacy for migration
-  if (existsSync(PURPOSES_FILE)) return PURPOSES_FILE;
-  if (existsSync(GOALS_FILE_LEGACY)) return GOALS_FILE_LEGACY;
-  return PURPOSES_FILE; // Default to new path
+  return PURPOSES_FILE;
 }
 
 export function getInboxPath(): string {
   return INBOX_DIR;
 }
-
-// Legacy alias
-export const getGoalsPath = getPurposesPath;

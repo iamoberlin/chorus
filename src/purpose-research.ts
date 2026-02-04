@@ -75,7 +75,7 @@ function loadState(): ResearchState {
       const data = JSON.parse(readFileSync(STATE_FILE, "utf-8"));
       return {
         dailyRuns: data.dailyRuns || { date: getTodayKey(), count: 0 },
-        activePurposeCount: data.activePurposeCount || data.activeGoalCount || 0,
+        activePurposeCount: data.activePurposeCount || 0,
       };
     }
   } catch {}
