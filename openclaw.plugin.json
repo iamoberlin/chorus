@@ -1,0 +1,117 @@
+{
+  "id": "chorus",
+  "name": "CHORUS",
+  "description": "CHORUS: Hierarchy Of Recursive Unified Self-improvement",
+  "version": "1.1.3",
+  "author": "Oberlin",
+  "homepage": "https://chorus.oberlin.ai",
+  "repository": "https://github.com/iamoberlin/chorus",
+  "keywords": ["cognitive-architecture", "rsi", "self-improvement", "nine-choirs", "purposes"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "enabled": {
+        "type": "boolean",
+        "description": "Enable the Nine Choirs scheduler"
+      },
+      "timezone": {
+        "type": "string",
+        "description": "IANA timezone for choir scheduling (e.g., America/New_York)"
+      },
+      "memoryConsolidation": {
+        "type": "boolean",
+        "description": "Enable Cherubim memory consolidation"
+      },
+      "episodicRetentionDays": {
+        "type": "number",
+        "description": "Days to retain episodic memory files"
+      },
+      "choirs": {
+        "type": "object",
+        "description": "Individual choir enable/disable overrides",
+        "additionalProperties": {
+          "type": "boolean"
+        }
+      },
+      "daemon": {
+        "type": "object",
+        "description": "Autonomous attention daemon configuration",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Enable the daemon"
+          },
+          "thinkThreshold": {
+            "type": "number",
+            "description": "Minimum priority to invoke cognition (0-100)"
+          },
+          "quietHoursStart": {
+            "type": "number",
+            "description": "Hour to start quiet mode (0-23)"
+          },
+          "quietHoursEnd": {
+            "type": "number",
+            "description": "Hour to end quiet mode (0-23)"
+          }
+        }
+      },
+      "purposeResearch": {
+        "type": "object",
+        "description": "Purpose-derived research scheduler",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Enable purpose-derived research"
+          },
+          "dailyRunCap": {
+            "type": "number",
+            "description": "Maximum research runs per day across all purposes"
+          },
+          "defaultFrequency": {
+            "type": "number",
+            "description": "Default research runs per day per purpose"
+          },
+          "defaultMaxFrequency": {
+            "type": "number",
+            "description": "Maximum frequency when deadline is urgent"
+          }
+        }
+      }
+    }
+  },
+  "uiHints": {
+    "enabled": {
+      "label": "Enable Choirs",
+      "help": "Master toggle for Nine Choirs scheduler"
+    },
+    "timezone": {
+      "label": "Timezone",
+      "placeholder": "America/New_York",
+      "help": "IANA timezone for scheduling"
+    },
+    "memoryConsolidation": {
+      "label": "Memory Consolidation",
+      "help": "Cherubim promotes insights to MEMORY.md"
+    },
+    "episodicRetentionDays": {
+      "label": "Episodic Retention",
+      "placeholder": "90",
+      "help": "Days to keep daily memory files"
+    },
+    "choirs": {
+      "label": "Choir Overrides",
+      "advanced": true,
+      "help": "Enable/disable specific choirs (e.g., {\"angels\": false})"
+    },
+    "daemon": {
+      "label": "Daemon Settings",
+      "advanced": true,
+      "help": "Configure autonomous attention daemon"
+    },
+    "purposeResearch": {
+      "label": "Purpose Research",
+      "help": "Configure purpose-derived research scheduler"
+    }
+  }
+}

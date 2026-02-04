@@ -1,0 +1,41 @@
+{
+  "name": "@iamoberlin/chorus",
+  "version": "1.1.4",
+  "description": "CHORUS: Hierarchy Of Recursive Unified Self-improvement",
+  "author": "Oberlin <iam@oberlin.ai>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/iamoberlin/chorus.git"
+  },
+  "homepage": "https://chorus.oberlin.ai",
+  "bugs": {
+    "url": "https://github.com/iamoberlin/chorus/issues"
+  },
+  "keywords": [
+    "openclaw",
+    "plugin",
+    "agent",
+    "rsi",
+    "recursive-self-improvement",
+    "nine-choirs",
+    "cognitive-architecture",
+    "ai-agent"
+  ],
+  "type": "module",
+  "main": "index.ts",
+  "files": [
+    "index.ts",
+    "src/",
+    "openclaw.plugin.json",
+    "logo.png"
+  ],
+  "peerDependencies": {
+    "openclaw": ">=2026.1.0"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}

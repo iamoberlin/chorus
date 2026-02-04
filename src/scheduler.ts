@@ -1,0 +1,241 @@
+/**
+ * CHORUS Choir Scheduler
+ *
+ * Executes choirs on schedule, manages illumination flow.
+ * Each choir runs at its defined frequency, with context passing between them.
+ */
+
+import type { OpenClawPluginService, PluginLogger } from "openclaw/plugin-sdk";
+import type { ChorusConfig } from "./config.js";
+import { CHOIRS, shouldRunChoir, CASCADE_ORDER, type Choir } from "./choirs.js";
+import { recordExecution, type ChoirExecution } from "./metrics.js";
+
+interface ChoirContext {
+  choirId: string;
+  output: string;
+  timestamp: Date;
+}
+
+interface ChoirRunState {
+  lastRun?: Date;
+  lastOutput?: string;
+  runCount: number;
+}
+
+export function createChoirScheduler(
+  config: ChorusConfig,
+  log: PluginLogger,
+  api: any // OpenClawPluginApi
+): OpenClawPluginService {
+  let checkInterval: NodeJS.Timeout | null = null;
+  const contextStore: Map<string, ChoirContext> = new Map();
+  const runState: Map<string, ChoirRunState> = new Map();
+
+  // Initialize run state for all choirs
+  for (const choirId of Object.keys(CHOIRS)) {
+    runState.set(choirId, { runCount: 0 });
+  }
+
+  // Build the prompt with context injected
+  function buildPrompt(choir: Choir): string {
+    let prompt = choir.prompt;
+
+    // Replace context placeholders
+    for (const upstreamId of choir.receivesFrom) {
+      const placeholder = `{${upstreamId}_context}`;
+      const ctx = contextStore.get(upstreamId);
+      const contextText = ctx ? ctx.output : "(awaiting context from " + upstreamId + ")";
+      prompt = prompt.replace(placeholder, contextText);
+    }
+
+    return prompt;
+  }
+
+  // Execute a choir
+  async function executeChoir(choir: Choir): Promise<void> {
+    const state = runState.get(choir.id) || { runCount: 0 };
+    const startTime = Date.now();
+
+    log.info(`[chorus] ${choir.emoji} Executing ${choir.name} (run #${state.runCount + 1})`);
+
+    const execution: ChoirExecution = {
+      choirId: choir.id,
+      timestamp: new Date().toISOString(),
+      durationMs: 0,
+      success: false,
+      outputLength: 0,
+    };
+
+    try {
+      const prompt = buildPrompt(choir);
+
+      // Use OpenClaw's session system to run an agent turn
+      const result = await api.runAgentTurn?.({
+        sessionLabel: `chorus:${choir.id}`,
+        message: prompt,
+        isolated: true,
+        timeoutSeconds: 300, // 5 min max
+      });
+
+      const output = result?.response || "(no response)";
+      execution.durationMs = Date.now() - startTime;
+      execution.success = true;
+      execution.outputLength = output.length;
+      execution.tokensUsed = result?.meta?.tokensUsed || estimateTokens(output);
+
+      // Parse output for metrics (findings, alerts, improvements)
+      execution.findings = countFindings(output);
+      execution.alerts = countAlerts(output);
+      execution.improvements = extractImprovements(output, choir.id);
+
+      // Store context for downstream choirs
+      contextStore.set(choir.id, {
+        choirId: choir.id,
+        output: output.slice(0, 2000), // Truncate for context passing
+        timestamp: new Date(),
+      });
+
+      // Update run state
+      runState.set(choir.id, {
+        lastRun: new Date(),
+        lastOutput: output.slice(0, 500),
+        runCount: state.runCount + 1,
+      });
+
+      log.info(`[chorus] ${choir.emoji} ${choir.name} completed (${(execution.durationMs/1000).toFixed(1)}s)`);
+
+      // Log illumination flow
+      if (choir.passesTo.length > 0) {
+        log.debug(`[chorus] Illumination ready for: ${choir.passesTo.join(", ")}`);
+      }
+
+    } catch (error) {
+      execution.durationMs = Date.now() - startTime;
+      execution.success = false;
+      execution.error = String(error);
+      log.error(`[chorus] ${choir.name} failed: ${error}`);
+    }
+
+    // Record metrics
+    recordExecution(execution);
+  }
+
+  // Estimate tokens from output length (rough: 1 token ≈ 4 chars)
+  function estimateTokens(text: string): number {
+    return Math.ceil(text.length / 4);
+  }
+
+  // Count research findings in output
+  function countFindings(output: string): number {
+    const patterns = [
+      /found\s+(\d+)\s+(?:papers?|articles?|findings?)/gi,
+      /(\d+)\s+(?:new|notable)\s+(?:papers?|findings?)/gi,
+      /key\s+findings?:/gi,
+      /\*\*finding/gi,
+    ];
+    let count = 0;
+    for (const pattern of patterns) {
+      const matches = output.match(pattern);
+      if (matches) count += matches.length;
+    }
+    return count;
+  }
+
+  // Count alerts in output
+  function countAlerts(output: string): number {
+    const patterns = [
+      /\balert\b/gi,
+      /\bnotif(?:y|ied|ication)\b/gi,
+      /\burgent\b/gi,
+      /\bimmediate\s+attention\b/gi,
+    ];
+    let count = 0;
+    for (const pattern of patterns) {
+      const matches = output.match(pattern);
+      if (matches) count += matches.length;
+    }
+    return Math.min(count, 5); // Cap at 5 to avoid false positives
+  }
+
+  // Extract improvements from RSI (Virtues) output
+  function extractImprovements(output: string, choirId: string): string[] {
+    if (choirId !== "virtues") return [];
+    const improvements: string[] = [];
+    const patterns = [
+      /implemented[:\s]+([^\n.]+)/gi,
+      /improved[:\s]+([^\n.]+)/gi,
+      /created[:\s]+([^\n.]+)/gi,
+      /updated[:\s]+([^\n.]+)/gi,
+    ];
+    for (const pattern of patterns) {
+      let match;
+      while ((match = pattern.exec(output)) !== null) {
+        const item = match[1].trim().slice(0, 50);
+        if (item.length > 5) improvements.push(item);
+      }
+    }
+    return improvements.slice(0, 5); // Cap at 5
+  }
+
+  // Check and run due choirs
+  async function checkAndRunChoirs(): Promise<void> {
+    const now = new Date();
+
+    // Check choirs in cascade order (important for illumination flow)
+    for (const choirId of CASCADE_ORDER) {
+      const choir = CHOIRS[choirId];
+      if (!choir) continue;
+
+      // Check if enabled
+      if (config.choirs.overrides[choirId] === false) {
+        continue;
+      }
+
+      // Check if due based on interval
+      const state = runState.get(choirId);
+      if (shouldRunChoir(choir, now, state?.lastRun)) {
+        await executeChoir(choir);
+      }
+    }
+  }
+
+  return {
+    id: "chorus-scheduler",
+
+    start: () => {
+      if (!config.choirs.enabled) {
+        log.info("[chorus] Choir scheduler disabled (enable in openclaw.yaml)");
+        return;
+      }
+
+      log.info("[chorus] 🎵 Starting Nine Choirs scheduler");
+      log.info("[chorus] Frequencies: Seraphim 1×/day → Angels 48×/day");
+
+      // Check for due choirs every minute
+      checkInterval = setInterval(() => {
+        checkAndRunChoirs().catch((err) => {
+          log.error(`[chorus] Scheduler error: ${err}`);
+        });
+      }, 60 * 1000);
+
+      // Run initial check after a short delay
+      setTimeout(() => {
+        log.info("[chorus] Running initial choir check...");
+        checkAndRunChoirs().catch((err) => {
+          log.error(`[chorus] Initial check error: ${err}`);
+        });
+      }, 5000);
+
+      log.info("[chorus] 🎵 Scheduler active");
+    },
+
+    stop: () => {
+      log.info("[chorus] Stopping choir scheduler");
+      if (checkInterval) {
+        clearInterval(checkInterval);
+        checkInterval = null;
+      }
+      contextStore.clear();
+    },
+  };
+}
