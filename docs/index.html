@@ -892,6 +892,26 @@
       </div>
     </div>
 
+    <h2>Purpose-Derived Research</h2>
+
+    <p>Research is driven by <strong>purposes</strong>, not fixed schedules. Define what you're pursuing, and CHORUS automatically runs adaptive-frequency research.</p>
+
+    <div class="callout">
+      <p><strong>How it works:</strong></p>
+      <p>1. Purposes with <code>criteria</code> spawn research agents<br>
+      2. Frequency adapts to deadlines — overdue purposes get max attention<br>
+      3. Daily cap (default 50) prevents runaway costs<br>
+      4. All metrics tracked through CHORUS</p>
+    </div>
+
+    <pre>openclaw chorus purpose add trading "Paper Trading" \
+  --deadline 2026-04-01 \
+  --criteria "Monitor positions,Scan markets" \
+  --frequency 12
+
+openclaw chorus research status
+openclaw chorus research run &lt;purposeId&gt;</pre>
+
     <hr>
 
     <h2>Get Started</h2>
