@@ -121,7 +121,7 @@ Research is driven by **purposes**, not fixed cron jobs. Define purposes with cr
 
 ```bash
 # Add purpose with research
-openclaw chorus purpose add trading "Paper Trading" \
+openclaw chorus purpose add trading "Trading" \
   --deadline 2026-04-01 \
   --criteria "Monitor positions,Scan Polymarket,Track news" \
   --frequency 12

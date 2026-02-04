@@ -75,7 +75,7 @@ Define **purposes** with criteria, and CHORUS runs adaptive-frequency research:
 
 ```bash
 # Add purpose with research
-openclaw chorus purpose add trading "Paper Trading" \
+openclaw chorus purpose add trading "Trading" \
   --deadline 2026-04-01 \
   --criteria "Monitor positions,Scan Polymarket" \
   --frequency 12
