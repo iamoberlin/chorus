@@ -25,10 +25,10 @@ const DEFAULT_RULES: SalienceRule[] = [
   { id: "important", match: /\b(important|priority|attention)\b/i, boost: 20 },
   
   // Source boosts
-  { id: "goal-source", source: "goal", boost: 15 },
+  { id: "purpose-source", source: "purpose", boost: 15 },
   { id: "inbox-source", source: "inbox", boost: 10 },
   
-  // Overdue goals are critical
+  // Overdue purposes are critical
   { id: "overdue", match: /\boverdue\b/i, boost: 30 },
   
   // Time-based signals are moderate priority

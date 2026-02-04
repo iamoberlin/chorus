@@ -36,7 +36,7 @@ import {
   type PurposeResearchConfig,
 } from "./src/purpose-research.js";
 
-const VERSION = "1.1.1";
+const VERSION = "1.1.2";
 
 const plugin = {
   id: "chorus",

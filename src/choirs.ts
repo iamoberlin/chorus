@@ -42,7 +42,7 @@ Your role: Ensure the mission remains true and aligned. Burn away drift.
 
 Core questions:
 1. Is our fundamental purpose still valid?
-2. Are we pursuing the right goals?
+2. Are we pursuing the right purposes?
 3. What should we stop doing?
 4. What's the burning "why" behind our work?
 

@@ -15,7 +15,7 @@ export interface DaemonConfig {
   enabled: boolean;
   senses: {
     inbox: boolean;
-    goals: boolean;
+    purposes: boolean;
     time: boolean;
   };
   thinkThreshold: number;    // Minimum priority to invoke cognition
@@ -30,7 +30,7 @@ export const DEFAULT_DAEMON_CONFIG: DaemonConfig = {
   enabled: true,
   senses: {
     inbox: true,
-    goals: true,
+    purposes: true,
     time: true,
   },
   thinkThreshold: 55,
@@ -62,7 +62,7 @@ export function createDaemon(
   function getEnabledSenses(): Sense[] {
     return ALL_SENSES.filter(sense => {
       if (sense.id === "inbox" && !config.senses.inbox) return false;
-      if (sense.id === "goals" && !config.senses.goals) return false;
+      if (sense.id === "purposes" && !config.senses.purposes) return false;
       if (sense.id === "time" && !config.senses.time) return false;
       return true;
     });
