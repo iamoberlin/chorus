@@ -1074,27 +1074,31 @@ cherubim consolidates to MEMORY.md.</pre>
     <h3>Example: CHANGELOG.md</h3>
     <pre><span style="color: var(--gold)">## February 4, 2026</span>
 
-<span style="color: var(--text-dim)">### Added: Retry Logic for External APIs</span>
-<strong>Problem:</strong> Research tasks failing silently when APIs 
-returned 429 (rate limit). Principalities choir would log 
-"research complete" with empty results.
+<span style="color: var(--text-dim)">### Added: Contrarian Signal Filter</span>
+<strong>Problem:</strong> Paper trading thesis on prediction markets 
+kept triggering entries when crowd sentiment aligned with 
+the bet. Historically, these were the worst entries — 
+buying YES at 85% when everyone agrees is max pain.
 
-<strong>Fix:</strong> Added exponential backoff with 3 retries to 
-all external API calls. Failed requests now raise explicit 
-errors that surface to the user.
+<strong>Fix:</strong> Added contrarian filter to research pipeline. 
+Now flags "crowded trade" when >80% of social mentions 
+agree with position direction. Forces explicit override 
+to enter crowded positions.
 
-<strong>Learning:</strong> Silent failures compound. If something 
-can fail, it should fail loudly.
+<strong>Learning:</strong> Edge comes from disagreement. If 
+everyone sees it, it's priced in.
 
-<span style="color: var(--text-dim)">### Changed: Alert Threshold</span>
-<strong>Problem:</strong> Archangels sending too many low-priority 
-alerts. User reported notification fatigue.
+<span style="color: var(--text-dim)">### Changed: Position Sizing on Binary Markets</span>
+<strong>Problem:</strong> Equal-sizing all prediction market bets 
+regardless of conviction or edge. A 92% confident NO was 
+getting same size as a 60% speculative YES.
 
-<strong>Fix:</strong> Raised alert threshold from "any anomaly" to 
-"anomaly + confidence > 0.7". Added daily digest for 
-low-confidence items.
+<strong>Fix:</strong> Implemented Kelly-adjacent sizing: 
+size = edge × confidence × 0.25 (quarter-Kelly for safety).
+High-conviction contrarian bets now get 3-4× base size.
 
-<strong>Learning:</strong> More signal, less noise.</pre>
+<strong>Learning:</strong> Bet size is a belief. Size your 
+positions like you mean it.</pre>
 
     <h2>Commands</h2>
 
