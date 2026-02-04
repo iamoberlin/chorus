@@ -1,6 +1,6 @@
 ---
 name: chorus
-version: 1.1.0
+version: 1.1.3
 description: CHORUS: Hierarchy Of Recursive Unified Self-improvement
 homepage: https://chorus.oberlin.ai
 repository: https://github.com/iamoberlin/chorus
