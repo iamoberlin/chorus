@@ -15,7 +15,7 @@ export interface ChorusConfig {
     consolidation: boolean;
     episodicRetentionDays: number;
   };
-  goalResearch: {
+  purposeResearch: {
     enabled: boolean;
     dailyRunCap: number;
     defaultFrequency: number;
@@ -31,7 +31,14 @@ export interface ChorusPluginConfig {
   episodicRetentionDays?: number;
   /** Individual choir overrides */
   choirs?: Record<string, boolean>;
-  /** Goal-derived research config */
+  /** Purpose-derived research config */
+  purposeResearch?: {
+    enabled?: boolean;
+    dailyRunCap?: number;
+    defaultFrequency?: number;
+    defaultMaxFrequency?: number;
+  };
+  /** @deprecated Use purposeResearch instead */
   goalResearch?: {
     enabled?: boolean;
     dailyRunCap?: number;
@@ -50,7 +57,7 @@ const DEFAULT_CONFIG: ChorusConfig = {
     consolidation: true,
     episodicRetentionDays: 90,
   },
-  goalResearch: {
+  purposeResearch: {
     enabled: true,
     dailyRunCap: 50,
     defaultFrequency: 6,
@@ -85,19 +92,20 @@ export function loadChorusConfig(pluginConfig?: ChorusPluginConfig): ChorusConfi
     config.memory.episodicRetentionDays = pluginConfig.episodicRetentionDays;
   }
 
-  // Goal Research
-  if (pluginConfig.goalResearch) {
-    if (pluginConfig.goalResearch.enabled !== undefined) {
-      config.goalResearch.enabled = pluginConfig.goalResearch.enabled;
+  // Purpose Research (with backwards compat for goalResearch)
+  const researchConfig = pluginConfig.purposeResearch || pluginConfig.goalResearch;
+  if (researchConfig) {
+    if (researchConfig.enabled !== undefined) {
+      config.purposeResearch.enabled = researchConfig.enabled;
     }
-    if (pluginConfig.goalResearch.dailyRunCap !== undefined) {
-      config.goalResearch.dailyRunCap = pluginConfig.goalResearch.dailyRunCap;
+    if (researchConfig.dailyRunCap !== undefined) {
+      config.purposeResearch.dailyRunCap = researchConfig.dailyRunCap;
     }
-    if (pluginConfig.goalResearch.defaultFrequency !== undefined) {
-      config.goalResearch.defaultFrequency = pluginConfig.goalResearch.defaultFrequency;
+    if (researchConfig.defaultFrequency !== undefined) {
+      config.purposeResearch.defaultFrequency = researchConfig.defaultFrequency;
     }
-    if (pluginConfig.goalResearch.defaultMaxFrequency !== undefined) {
-      config.goalResearch.defaultMaxFrequency = pluginConfig.goalResearch.defaultMaxFrequency;
+    if (researchConfig.defaultMaxFrequency !== undefined) {
+      config.purposeResearch.defaultMaxFrequency = researchConfig.defaultMaxFrequency;
     }
   }
 

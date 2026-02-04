@@ -1,18 +1,18 @@
 /**
- * CHORUS Goal Research Scheduler
+ * CHORUS Purpose Research Scheduler
  *
- * Runs research for active goals based on adaptive frequency.
+ * Runs research for active purposes based on adaptive frequency.
  * Separate from choir-scheduler (fixed 9) and daemon (attention response).
  */
 
 import type { OpenClawPluginService, PluginLogger } from "openclaw/plugin-sdk";
-import { loadGoals, updateGoal, type Goal } from "./goals.js";
+import { loadPurposes, updatePurpose, type Purpose } from "./purposes.js";
 import { recordExecution, type ChoirExecution } from "./metrics.js";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 
-export interface GoalResearchConfig {
+export interface PurposeResearchConfig {
   enabled: boolean;
   dailyRunCap: number;
   defaultFrequency: number;
@@ -21,7 +21,7 @@ export interface GoalResearchConfig {
   checkIntervalMs: number;
 }
 
-export const DEFAULT_GOAL_RESEARCH_CONFIG: GoalResearchConfig = {
+export const DEFAULT_PURPOSE_RESEARCH_CONFIG: PurposeResearchConfig = {
   enabled: true,
   dailyRunCap: 50,
   defaultFrequency: 6,
@@ -37,7 +37,7 @@ interface DailyRunTracker {
 
 interface ResearchState {
   dailyRuns: DailyRunTracker;
-  activeGoalCount: number;
+  activePurposeCount: number;
 }
 
 function getTodayKey(): string {
@@ -75,13 +75,13 @@ function loadState(): ResearchState {
       const data = JSON.parse(readFileSync(STATE_FILE, "utf-8"));
       return {
         dailyRuns: data.dailyRuns || { date: getTodayKey(), count: 0 },
-        activeGoalCount: data.activeGoalCount || 0,
+        activePurposeCount: data.activePurposeCount || data.activeGoalCount || 0,
       };
     }
   } catch {}
   return {
     dailyRuns: { date: getTodayKey(), count: 0 },
-    activeGoalCount: 0,
+    activePurposeCount: 0,
   };
 }
 
@@ -94,27 +94,27 @@ function saveState(state: ResearchState): void {
   } catch {}
 }
 
-export function createGoalResearchScheduler(
-  config: GoalResearchConfig,
+export function createPurposeResearchScheduler(
+  config: PurposeResearchConfig,
   log: PluginLogger,
   api: any
 ): OpenClawPluginService & {
   getDailyRunCount: () => number;
   getDailyCap: () => number;
-  forceRun: (goalId: string) => Promise<void>;
-  getStatus: () => { enabled: boolean; dailyRuns: number; dailyCap: number; activeGoals: number };
+  forceRun: (purposeId: string) => Promise<void>;
+  getStatus: () => { enabled: boolean; dailyRuns: number; dailyCap: number; activePurposes: number };
 } {
   let checkInterval: NodeJS.Timeout | null = null;
   
   // Load persisted state
   const state = loadState();
   let dailyRuns: DailyRunTracker = state.dailyRuns;
-  let cachedActiveGoalCount: number = state.activeGoalCount;
+  let cachedActivePurposeCount: number = state.activePurposeCount;
 
   function checkDayRollover(): void {
     const today = getTodayKey();
     if (dailyRuns.date !== today) {
-      log.info(`[goal-research] New day — resetting run counter`);
+      log.info(`[purpose-research] New day — resetting run counter`);
       dailyRuns = { date: today, count: 0 };
       persistState();
     }
@@ -123,18 +123,18 @@ export function createGoalResearchScheduler(
   function persistState(): void {
     saveState({
       dailyRuns,
-      activeGoalCount: cachedActiveGoalCount,
+      activePurposeCount: cachedActivePurposeCount,
     });
   }
 
-  function calculateFrequency(goal: Goal): number {
-    const base = goal.research?.frequency ?? config.defaultFrequency;
-    const max = goal.research?.maxFrequency ?? config.defaultMaxFrequency;
+  function calculateFrequency(purpose: Purpose): number {
+    const base = purpose.research?.frequency ?? config.defaultFrequency;
+    const max = purpose.research?.maxFrequency ?? config.defaultMaxFrequency;
 
-    if (!goal.deadline) return base;
+    if (!purpose.deadline) return base;
 
     const deadline =
-      typeof goal.deadline === "string" ? Date.parse(goal.deadline) : goal.deadline;
+      typeof purpose.deadline === "string" ? Date.parse(purpose.deadline) : purpose.deadline;
     const daysRemaining = (deadline - Date.now()) / (24 * 60 * 60 * 1000);
 
     let frequency: number;
@@ -151,29 +151,29 @@ export function createGoalResearchScheduler(
     return Math.min(frequency, max);
   }
 
-  function isResearchDue(goal: Goal): boolean {
-    if (goal.progress >= 100) return false;
-    if (goal.research?.enabled === false) return false;
-    if (!goal.criteria?.length && !goal.research?.domains?.length) return false;
+  function isResearchDue(purpose: Purpose): boolean {
+    if (purpose.progress >= 100) return false;
+    if (purpose.research?.enabled === false) return false;
+    if (!purpose.criteria?.length && !purpose.research?.domains?.length) return false;
 
-    const lastRun = goal.research?.lastRun ?? 0;
-    const frequency = calculateFrequency(goal);
+    const lastRun = purpose.research?.lastRun ?? 0;
+    const frequency = calculateFrequency(purpose);
     const intervalMs = (24 * 60 * 60 * 1000) / frequency;
 
     return Date.now() - lastRun >= intervalMs;
   }
 
-  function generatePrompt(goal: Goal): string {
-    const domains = goal.research?.domains?.join(", ") || "relevant sources";
-    const criteria = goal.criteria?.map((c) => `- ${c}`).join("\n") || "(no specific criteria)";
-    const isCurious = (goal.curiosity ?? 0) > 70;
+  function generatePrompt(purpose: Purpose): string {
+    const domains = purpose.research?.domains?.join(", ") || "relevant sources";
+    const criteria = purpose.criteria?.map((c) => `- ${c}`).join("\n") || "(no specific criteria)";
+    const isCurious = (purpose.curiosity ?? 0) > 70;
 
     if (isCurious) {
       return `
-GOAL RESEARCH (EXPLORATION MODE): ${goal.name}
+PURPOSE RESEARCH (EXPLORATION MODE): ${purpose.name}
 
 You are exploring ideas related to:
-${goal.description || goal.name}
+${purpose.description || purpose.name}
 
 This is curiosity-driven research. Be open to unexpected connections.
 
@@ -192,22 +192,22 @@ Output format:
 - QUESTIONS: New questions raised
 - RABBIT_HOLES: Topics worth deeper exploration
 
-Write findings to: research/goal-${goal.id}-$(date +%Y-%m-%d-%H%M).md
+Write findings to: research/purpose-${purpose.id}-$(date +%Y-%m-%d-%H%M).md
 `.trim();
     }
 
-    const alertThreshold = goal.research?.alertThreshold ?? "medium";
+    const alertThreshold = purpose.research?.alertThreshold ?? "medium";
     const alertGuidance: Record<string, string> = {
       low: "Alert only for critical, time-sensitive findings",
-      medium: "Alert for significant developments affecting the goal",
+      medium: "Alert for significant developments affecting the purpose",
       high: "Alert for any notable findings",
     };
 
     return `
-GOAL RESEARCH: ${goal.name}
+PURPOSE RESEARCH: ${purpose.name}
 
-You are researching for the following goal:
-${goal.description || goal.name}
+You are researching for the following purpose:
+${purpose.description || purpose.name}
 
 Search domains: ${domains}
 
@@ -215,8 +215,8 @@ Success criteria to inform research:
 ${criteria}
 
 Tasks:
-1. Search for recent developments relevant to this goal
-2. Assess impact on goal progress or timeline
+1. Search for recent developments relevant to this purpose
+2. Assess impact on purpose progress or timeline
 3. Flag anything that challenges or validates current assumptions
 4. Note actionable insights
 
@@ -225,22 +225,22 @@ ${alertGuidance[alertThreshold]}
 
 Output format:
 - FINDINGS: Key discoveries (bullet points)
-- IMPACT: How this affects the goal (progress/timeline/risk)
+- IMPACT: How this affects the purpose (progress/timeline/risk)
 - ALERTS: Anything requiring immediate attention (or "none")
 - NEXT: What to research next time
 
-Write findings to: research/goal-${goal.id}-$(date +%Y-%m-%d-%H%M).md
+Write findings to: research/purpose-${purpose.id}-$(date +%Y-%m-%d-%H%M).md
 
 CRITICAL: If sending alerts via iMessage, use PLAIN TEXT ONLY (no markdown).
 `.trim();
   }
 
-  async function runResearch(goal: Goal): Promise<void> {
+  async function runResearch(purpose: Purpose): Promise<void> {
     const startTime = Date.now();
-    log.info(`[goal-research] 🔬 Running research for "${goal.name}"`);
+    log.info(`[purpose-research] 🔬 Running research for "${purpose.name}"`);
 
     const execution: ChoirExecution = {
-      choirId: `goal:${goal.id}`,
+      choirId: `purpose:${purpose.id}`,
       timestamp: new Date().toISOString(),
       durationMs: 0,
       success: false,
@@ -248,10 +248,10 @@ CRITICAL: If sending alerts via iMessage, use PLAIN TEXT ONLY (no markdown).
     };
 
     try {
-      const prompt = generatePrompt(goal);
+      const prompt = generatePrompt(purpose);
 
       const result = await api.runAgentTurn?.({
-        sessionLabel: `chorus:goal:${goal.id}`,
+        sessionLabel: `chorus:purpose:${purpose.id}`,
         message: prompt,
         isolated: true,
         timeoutSeconds: config.researchTimeoutMs / 1000,
@@ -266,23 +266,23 @@ CRITICAL: If sending alerts via iMessage, use PLAIN TEXT ONLY (no markdown).
       execution.alerts = countAlerts(output);
 
       log.info(
-        `[goal-research] ✓ "${goal.name}" complete ` +
+        `[purpose-research] ✓ "${purpose.name}" complete ` +
           `(${(execution.durationMs / 1000).toFixed(1)}s, ${execution.findings} findings)`
       );
 
-      await updateGoal(goal.id, {
+      await updatePurpose(purpose.id, {
         research: {
-          ...goal.research,
-          enabled: goal.research?.enabled ?? true,
+          ...purpose.research,
+          enabled: purpose.research?.enabled ?? true,
           lastRun: Date.now(),
-          runCount: (goal.research?.runCount ?? 0) + 1,
+          runCount: (purpose.research?.runCount ?? 0) + 1,
         },
       });
     } catch (err) {
       execution.durationMs = Date.now() - startTime;
       execution.success = false;
       execution.error = String(err);
-      log.error(`[goal-research] ✗ "${goal.name}" failed: ${err}`);
+      log.error(`[purpose-research] ✗ "${purpose.name}" failed: ${err}`);
     }
 
     recordExecution(execution);
@@ -294,25 +294,25 @@ CRITICAL: If sending alerts via iMessage, use PLAIN TEXT ONLY (no markdown).
     checkDayRollover();
 
     if (dailyRuns.count >= config.dailyRunCap) {
-      log.debug(`[goal-research] Daily cap reached (${dailyRuns.count}/${config.dailyRunCap})`);
+      log.debug(`[purpose-research] Daily cap reached (${dailyRuns.count}/${config.dailyRunCap})`);
       return;
     }
 
-    const goals = await loadGoals();
+    const purposes = await loadPurposes();
     
-    // Update cached active goal count
-    cachedActiveGoalCount = goals.filter(
-      (g) =>
-        g.progress < 100 &&
-        g.research?.enabled !== false &&
-        (g.criteria?.length || g.research?.domains?.length)
+    // Update cached active purpose count
+    cachedActivePurposeCount = purposes.filter(
+      (p) =>
+        p.progress < 100 &&
+        p.research?.enabled !== false &&
+        (p.criteria?.length || p.research?.domains?.length)
     ).length;
     
-    const dueGoals = goals.filter(isResearchDue);
+    const duePurposes = purposes.filter(isResearchDue);
 
-    if (dueGoals.length === 0) return;
+    if (duePurposes.length === 0) return;
 
-    dueGoals.sort((a, b) => {
+    duePurposes.sort((a, b) => {
       const aDeadline = a.deadline
         ? typeof a.deadline === "string"
           ? Date.parse(a.deadline)
@@ -326,44 +326,44 @@ CRITICAL: If sending alerts via iMessage, use PLAIN TEXT ONLY (no markdown).
       return aDeadline - bDeadline;
     });
 
-    const goal = dueGoals[0];
+    const purpose = duePurposes[0];
 
     if (dailyRuns.count < config.dailyRunCap) {
-      await runResearch(goal);
+      await runResearch(purpose);
     }
   }
 
   return {
-    id: "chorus-goal-research",
+    id: "chorus-purpose-research",
 
     start: () => {
       if (!config.enabled) {
-        log.info("[goal-research] Disabled in config");
+        log.info("[purpose-research] Disabled in config");
         return;
       }
 
-      log.info("[goal-research] 🔬 Starting goal research scheduler");
+      log.info("[purpose-research] 🔬 Starting purpose research scheduler");
       log.info(
-        `[goal-research] Daily cap: ${config.dailyRunCap}, check interval: ${config.checkIntervalMs / 1000}s`
+        `[purpose-research] Daily cap: ${config.dailyRunCap}, check interval: ${config.checkIntervalMs / 1000}s`
       );
 
       checkInterval = setInterval(() => {
         checkAndRun().catch((err) => {
-          log.error(`[goal-research] Check failed: ${err}`);
+          log.error(`[purpose-research] Check failed: ${err}`);
         });
       }, config.checkIntervalMs);
 
       setTimeout(() => {
         checkAndRun().catch((err) => {
-          log.error(`[goal-research] Initial check failed: ${err}`);
+          log.error(`[purpose-research] Initial check failed: ${err}`);
         });
       }, 5000);
 
-      log.info("[goal-research] 🔬 Scheduler active");
+      log.info("[purpose-research] 🔬 Scheduler active");
     },
 
     stop: () => {
-      log.info("[goal-research] Stopping");
+      log.info("[purpose-research] Stopping");
       if (checkInterval) {
         clearInterval(checkInterval);
         checkInterval = null;
@@ -373,11 +373,11 @@ CRITICAL: If sending alerts via iMessage, use PLAIN TEXT ONLY (no markdown).
     getDailyRunCount: () => dailyRuns.count,
     getDailyCap: () => config.dailyRunCap,
 
-    forceRun: async (goalId: string) => {
-      const goals = await loadGoals();
-      const goal = goals.find((g) => g.id === goalId);
-      if (!goal) throw new Error(`Goal "${goalId}" not found`);
-      await runResearch(goal);
+    forceRun: async (purposeId: string) => {
+      const purposes = await loadPurposes();
+      const purpose = purposes.find((p) => p.id === purposeId);
+      if (!purpose) throw new Error(`Purpose "${purposeId}" not found`);
+      await runResearch(purpose);
     },
 
     getStatus: () => {
@@ -385,7 +385,7 @@ CRITICAL: If sending alerts via iMessage, use PLAIN TEXT ONLY (no markdown).
         enabled: config.enabled,
         dailyRuns: dailyRuns.count,
         dailyCap: config.dailyRunCap,
-        activeGoals: cachedActiveGoalCount,
+        activePurposes: cachedActivePurposeCount,
       };
     },
   };

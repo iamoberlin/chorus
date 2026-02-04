@@ -103,40 +103,40 @@ research/*.md   # Principalities findings
 proposals/*.md  # High-risk changes for review
 ```
 
-## Goal-Derived Research (v1.0.3+)
+## Purpose-Derived Research (v1.1.0+)
 
-Research is driven by **goals**, not fixed cron jobs. Define goals with criteria, and CHORUS automatically runs adaptive-frequency research.
+Research is driven by **purposes**, not fixed cron jobs. Define purposes with criteria, and CHORUS automatically runs adaptive-frequency research.
 
 ### How It Works
 
-1. Goals with `criteria` or `domains` spawn research agents
+1. Purposes with `criteria` or `domains` spawn research agents
 2. Frequency adapts to deadline proximity:
    - Overdue → max frequency
    - ≤7 days → 3× base
    - ≤30 days → 1.5× base
 3. Daily cap (default 50) prevents runaway costs
-4. Metrics tracked under `goal:<id>` namespace
+4. Metrics tracked under `purpose:<id>` namespace
 
 ### CLI
 
 ```bash
-# Add goal with research
-openclaw chorus goal add trading "Paper Trading" \
+# Add purpose with research
+openclaw chorus purpose add trading "Paper Trading" \
   --deadline 2026-04-01 \
   --criteria "Monitor positions,Scan Polymarket,Track news" \
   --frequency 12
 
-# Configure research on existing goal
-openclaw chorus goal research <id> --enable --frequency 8 --criteria "..."
+# Configure research on existing purpose
+openclaw chorus purpose research <id> --enable --frequency 8 --criteria "..."
 
 # Check research status
 openclaw chorus research status
 
 # Manual trigger
-openclaw chorus research run <goalId>
+openclaw chorus research run <purposeId>
 
 # View research metrics
-openclaw chorus metrics goals
+openclaw chorus metrics purposes
 ```
 
 ### Configuration
@@ -146,7 +146,7 @@ plugins:
   entries:
     chorus:
       config:
-        goalResearch:
+        purposeResearch:
           enabled: true
           dailyRunCap: 50
           defaultFrequency: 6
@@ -156,11 +156,13 @@ plugins:
 ## CLI Commands
 
 ```bash
-openclaw chorus status      # Show CHORUS status
-openclaw chorus list        # List all choirs and schedules
-openclaw chorus run <id>    # Manually trigger a choir
-openclaw chorus research status  # Show goal research status
-openclaw chorus goal list   # List all goals
+openclaw chorus status           # Show CHORUS status
+openclaw chorus list             # List all choirs and schedules
+openclaw chorus run <id>         # Manually trigger a choir
+openclaw chorus research status  # Show purpose research status
+openclaw chorus purpose list     # List all purposes
+openclaw chorus purpose add      # Add a new purpose
+openclaw chorus purpose done     # Mark purpose complete
 ```
 
 ## Philosophy

@@ -28,7 +28,9 @@ export interface Sense {
 
 const CHORUS_DIR = join(homedir(), ".chorus");
 const INBOX_DIR = join(CHORUS_DIR, "inbox");
-const GOALS_FILE = join(CHORUS_DIR, "goals.json");
+const PURPOSES_FILE = join(CHORUS_DIR, "purposes.json");
+// Backwards compat: check old file too
+const GOALS_FILE_LEGACY = join(CHORUS_DIR, "goals.json");
 
 // Ensure directories exist
 async function ensureDirs() {
@@ -96,106 +98,110 @@ async function processInboxFile(
 }
 
 /**
- * Goals Sense
- * Monitors ~/.chorus/goals.json for approaching deadlines
+ * Purposes Sense
+ * Monitors ~/.chorus/purposes.json for approaching deadlines
  */
-export const goalsSense: Sense = {
-  id: "goals",
-  description: "Monitors goals and deadlines",
+export const purposesSense: Sense = {
+  id: "purposes",
+  description: "Monitors purposes and deadlines",
 
   async poll() {
     const signals: Signal[] = [];
 
     try {
-      const data = await readFile(GOALS_FILE, "utf-8");
-      const goals = JSON.parse(data);
+      // Try new file first, fall back to legacy
+      const filePath = existsSync(PURPOSES_FILE) ? PURPOSES_FILE : GOALS_FILE_LEGACY;
+      if (!existsSync(filePath)) return signals;
+      
+      const data = await readFile(filePath, "utf-8");
+      const purposes = JSON.parse(data);
       const now = Date.now();
 
-      for (const goal of goals) {
-        // Skip completed goals
-        if (goal.progress >= 100) continue;
+      for (const purpose of purposes) {
+        // Skip completed purposes
+        if (purpose.progress >= 100) continue;
 
         // Deadline pressure
-        if (goal.deadline) {
-          const deadline = typeof goal.deadline === "string" 
-            ? Date.parse(goal.deadline) 
-            : goal.deadline;
+        if (purpose.deadline) {
+          const deadline = typeof purpose.deadline === "string" 
+            ? Date.parse(purpose.deadline) 
+            : purpose.deadline;
           const msLeft = deadline - now;
           const daysLeft = msLeft / (1000 * 60 * 60 * 24);
 
           if (daysLeft <= 0) {
             // Overdue!
             signals.push({
-              id: `goal:${goal.id}:overdue`,
-              source: "goal",
-              content: `OVERDUE: "${goal.name}" was due ${Math.abs(daysLeft).toFixed(0)} days ago! Progress: ${goal.progress}%`,
+              id: `purpose:${purpose.id}:overdue`,
+              source: "purpose",
+              content: `OVERDUE: "${purpose.name}" was due ${Math.abs(daysLeft).toFixed(0)} days ago! Progress: ${purpose.progress}%`,
               priority: 95,
               timestamp: new Date(),
-              metadata: { goalId: goal.id, daysLeft, overdue: true },
+              metadata: { purposeId: purpose.id, daysLeft, overdue: true },
             });
           } else if (daysLeft <= 1) {
             signals.push({
-              id: `goal:${goal.id}:urgent`,
-              source: "goal",
-              content: `URGENT: "${goal.name}" due in ${(daysLeft * 24).toFixed(0)} hours. Progress: ${goal.progress}%`,
+              id: `purpose:${purpose.id}:urgent`,
+              source: "purpose",
+              content: `URGENT: "${purpose.name}" due in ${(daysLeft * 24).toFixed(0)} hours. Progress: ${purpose.progress}%`,
               priority: 85,
               timestamp: new Date(),
-              metadata: { goalId: goal.id, daysLeft },
+              metadata: { purposeId: purpose.id, daysLeft },
             });
           } else if (daysLeft <= 3) {
             signals.push({
-              id: `goal:${goal.id}:soon`,
-              source: "goal",
-              content: `"${goal.name}" due in ${daysLeft.toFixed(0)} days. Progress: ${goal.progress}%`,
+              id: `purpose:${purpose.id}:soon`,
+              source: "purpose",
+              content: `"${purpose.name}" due in ${daysLeft.toFixed(0)} days. Progress: ${purpose.progress}%`,
               priority: 70,
               timestamp: new Date(),
-              metadata: { goalId: goal.id, daysLeft },
+              metadata: { purposeId: purpose.id, daysLeft },
             });
           } else if (daysLeft <= 7) {
             signals.push({
-              id: `goal:${goal.id}:upcoming`,
-              source: "goal",
-              content: `"${goal.name}" due in ${daysLeft.toFixed(0)} days. Progress: ${goal.progress}%`,
+              id: `purpose:${purpose.id}:upcoming`,
+              source: "purpose",
+              content: `"${purpose.name}" due in ${daysLeft.toFixed(0)} days. Progress: ${purpose.progress}%`,
               priority: 50,
               timestamp: new Date(),
-              metadata: { goalId: goal.id, daysLeft },
+              metadata: { purposeId: purpose.id, daysLeft },
             });
           }
         }
 
         // Stalled progress (no deadline but hasn't been worked on)
-        if (goal.lastWorkedOn) {
-          const lastWorked = typeof goal.lastWorkedOn === "string"
-            ? Date.parse(goal.lastWorkedOn)
-            : goal.lastWorkedOn;
+        if (purpose.lastWorkedOn) {
+          const lastWorked = typeof purpose.lastWorkedOn === "string"
+            ? Date.parse(purpose.lastWorkedOn)
+            : purpose.lastWorkedOn;
           const daysSince = (now - lastWorked) / (1000 * 60 * 60 * 24);
 
-          if (daysSince > 3 && goal.progress < 100 && goal.progress > 0) {
+          if (daysSince > 3 && purpose.progress < 100 && purpose.progress > 0) {
             signals.push({
-              id: `goal:${goal.id}:stalled`,
-              source: "goal",
-              content: `"${goal.name}" stalled — no progress in ${daysSince.toFixed(0)} days (${goal.progress}% complete)`,
+              id: `purpose:${purpose.id}:stalled`,
+              source: "purpose",
+              content: `"${purpose.name}" stalled — no progress in ${daysSince.toFixed(0)} days (${purpose.progress}% complete)`,
               priority: 40,
               timestamp: new Date(),
-              metadata: { goalId: goal.id, daysSince },
+              metadata: { purposeId: purpose.id, daysSince },
             });
           }
         }
 
         // Curiosity-driven (optional field)
-        if (goal.curiosity && goal.curiosity > 60 && !goal.deadline) {
+        if (purpose.curiosity && purpose.curiosity > 60 && !purpose.deadline) {
           signals.push({
-            id: `goal:${goal.id}:curiosity`,
+            id: `purpose:${purpose.id}:curiosity`,
             source: "curiosity",
-            content: `Curious about: "${goal.name}"`,
-            priority: Math.min(40, goal.curiosity * 0.5),
+            content: `Curious about: "${purpose.name}"`,
+            priority: Math.min(40, purpose.curiosity * 0.5),
             timestamp: new Date(),
-            metadata: { goalId: goal.id, curiosity: goal.curiosity },
+            metadata: { purposeId: purpose.id, curiosity: purpose.curiosity },
           });
         }
       }
     } catch (err) {
-      // No goals file or parse error — that's fine
+      // No purposes file or parse error — that's fine
     }
 
     return signals;
@@ -245,13 +251,19 @@ export const timeSense: Sense = {
 };
 
 // Export all senses
-export const ALL_SENSES: Sense[] = [inboxSense, goalsSense, timeSense];
+export const ALL_SENSES: Sense[] = [inboxSense, purposesSense, timeSense];
 
-// Utility to get goals file path
-export function getGoalsPath(): string {
-  return GOALS_FILE;
+// Utility to get purposes file path (with migration support)
+export function getPurposesPath(): string {
+  // If new file exists, use it; otherwise use legacy for migration
+  if (existsSync(PURPOSES_FILE)) return PURPOSES_FILE;
+  if (existsSync(GOALS_FILE_LEGACY)) return GOALS_FILE_LEGACY;
+  return PURPOSES_FILE; // Default to new path
 }
 
 export function getInboxPath(): string {
   return INBOX_DIR;
 }
+
+// Legacy alias
+export const getGoalsPath = getPurposesPath;

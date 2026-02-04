@@ -1,6 +1,6 @@
 ---
 name: chorus
-version: 0.4.0
+version: 1.1.0
 description: CHORUS: Hierarchy Of Recursive Unified Self-improvement
 homepage: https://chorus.oberlin.ai
 repository: https://github.com/iamoberlin/chorus
@@ -69,12 +69,46 @@ Frequency increases descending. Higher choirs set context; lower choirs execute.
 4. Log to CHANGELOG.md
 5. powers choir validates adversarially
 
+## Purpose-Derived Research (v1.1.0+)
+
+Define **purposes** with criteria, and CHORUS runs adaptive-frequency research:
+
+```bash
+# Add purpose with research
+openclaw chorus purpose add trading "Paper Trading" \
+  --deadline 2026-04-01 \
+  --criteria "Monitor positions,Scan Polymarket" \
+  --frequency 12
+
+# Check status
+openclaw chorus research status
+
+# Manual trigger
+openclaw chorus research run <purposeId>
+```
+
+Configuration:
+
+```yaml
+plugins:
+  entries:
+    chorus:
+      config:
+        purposeResearch:
+          enabled: true
+          dailyRunCap: 50
+          defaultFrequency: 6
+```
+
 ## CLI Commands
 
 ```bash
-openclaw chorus status      # Show status
-openclaw chorus list        # List choirs
-openclaw chorus run <id>    # Manual trigger
+openclaw chorus status           # Show status
+openclaw chorus list             # List choirs
+openclaw chorus run <id>         # Manual trigger
+openclaw chorus purpose list     # List purposes
+openclaw chorus purpose add      # Add purpose
+openclaw chorus research status  # Research status
 ```
 
 ## Uninstall

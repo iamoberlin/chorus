@@ -24,19 +24,19 @@ import {
 import { createDaemon, DEFAULT_DAEMON_CONFIG, type DaemonConfig } from "./src/daemon.js";
 import { getInboxPath } from "./src/senses.js";
 import {
-  loadGoals,
-  addGoal,
-  updateGoal,
-  removeGoal,
-  formatGoalsList,
-} from "./src/goals.js";
+  loadPurposes,
+  addPurpose,
+  updatePurpose,
+  removePurpose,
+  formatPurposesList,
+} from "./src/purposes.js";
 import {
-  createGoalResearchScheduler,
-  DEFAULT_GOAL_RESEARCH_CONFIG,
-  type GoalResearchConfig,
-} from "./src/goal-research.js";
+  createPurposeResearchScheduler,
+  DEFAULT_PURPOSE_RESEARCH_CONFIG,
+  type PurposeResearchConfig,
+} from "./src/purpose-research.js";
 
-const VERSION = "1.0.3";
+const VERSION = "1.1.0";
 
 const plugin = {
   id: "chorus",
@@ -77,22 +77,22 @@ const plugin = {
       api.logger.info("[chorus] Daemon disabled");
     }
 
-    // Register goal research service
-    const goalResearchConfig: GoalResearchConfig = {
-      ...DEFAULT_GOAL_RESEARCH_CONFIG,
-      enabled: config.goalResearch.enabled,
-      dailyRunCap: config.goalResearch.dailyRunCap,
-      defaultFrequency: config.goalResearch.defaultFrequency,
-      defaultMaxFrequency: config.goalResearch.defaultMaxFrequency,
+    // Register purpose research service
+    const purposeResearchConfig: PurposeResearchConfig = {
+      ...DEFAULT_PURPOSE_RESEARCH_CONFIG,
+      enabled: config.purposeResearch.enabled,
+      dailyRunCap: config.purposeResearch.dailyRunCap,
+      defaultFrequency: config.purposeResearch.defaultFrequency,
+      defaultMaxFrequency: config.purposeResearch.defaultMaxFrequency,
     };
 
-    let goalResearch: ReturnType<typeof createGoalResearchScheduler> | null = null;
-    if (goalResearchConfig.enabled) {
-      goalResearch = createGoalResearchScheduler(goalResearchConfig, api.logger, api);
-      api.registerService(goalResearch);
-      api.logger.info("[chorus] Goal research enabled — adaptive frequency active");
+    let purposeResearch: ReturnType<typeof createPurposeResearchScheduler> | null = null;
+    if (purposeResearchConfig.enabled) {
+      purposeResearch = createPurposeResearchScheduler(purposeResearchConfig, api.logger, api);
+      api.registerService(purposeResearch);
+      api.logger.info("[chorus] Purpose research enabled — adaptive frequency active");
     } else {
-      api.logger.info("[chorus] Goal research disabled");
+      api.logger.info("[chorus] Purpose research disabled");
     }
 
     // Register CLI
@@ -101,35 +101,35 @@ const plugin = {
 
       // Status command
       program.command("status").description("Show CHORUS status").action(async () => {
-        const goals = await loadGoals();
-        const activeGoals = goals.filter(g => g.progress < 100);
-        const researchGoals = goals.filter(g => 
-          g.progress < 100 && 
-          g.research?.enabled !== false && 
-          (g.criteria?.length || g.research?.domains?.length)
+        const purposes = await loadPurposes();
+        const activePurposes = purposes.filter(p => p.progress < 100);
+        const researchPurposes = purposes.filter(p => 
+          p.progress < 100 && 
+          p.research?.enabled !== false && 
+          (p.criteria?.length || p.research?.domains?.length)
         );
         
         console.log("");
         console.log("🎵 CHORUS — Hierarchy Of Recursive Unified Self-improvement");
         console.log("═".repeat(55));
         console.log("");
-        console.log(`  Version:        ${VERSION}`);
-        console.log(`  Choirs:         ${config.choirs.enabled ? "✅ enabled" : "❌ disabled"}`);
-        console.log(`  Daemon:         ${daemonConfig.enabled ? "✅ enabled" : "❌ disabled"}`);
-        console.log(`  Goal Research:  ${goalResearchConfig.enabled ? "✅ enabled" : "❌ disabled"}`);
-        console.log(`  Active Goals:   ${activeGoals.length}`);
-        console.log(`  Research Goals: ${researchGoals.length}`);
+        console.log(`  Version:          ${VERSION}`);
+        console.log(`  Choirs:           ${config.choirs.enabled ? "✅ enabled" : "❌ disabled"}`);
+        console.log(`  Daemon:           ${daemonConfig.enabled ? "✅ enabled" : "❌ disabled"}`);
+        console.log(`  Purpose Research: ${purposeResearchConfig.enabled ? "✅ enabled" : "❌ disabled"}`);
+        console.log(`  Active Purposes:  ${activePurposes.length}`);
+        console.log(`  Research Purposes: ${researchPurposes.length}`);
         if (daemon) {
-          console.log(`  Attention Queue: ${daemon.getQueueSize()} items`);
+          console.log(`  Attention Queue:  ${daemon.getQueueSize()} items`);
         }
-        if (goalResearch) {
-          console.log(`  Research Runs:  ${goalResearch.getDailyRunCount()}/${goalResearch.getDailyCap()} today`);
+        if (purposeResearch) {
+          console.log(`  Research Runs:    ${purposeResearch.getDailyRunCount()}/${purposeResearch.getDailyCap()} today`);
         }
-        console.log(`  Timezone:       ${config.choirs.timezone}`);
+        console.log(`  Timezone:         ${config.choirs.timezone}`);
         console.log("");
         
-        if (!config.choirs.enabled && !daemonConfig.enabled && !goalResearchConfig.enabled) {
-          console.log("  💡 Enable choirs, daemon, or goalResearch in openclaw.yaml");
+        if (!config.choirs.enabled && !daemonConfig.enabled && !purposeResearchConfig.enabled) {
+          console.log("  💡 Enable choirs, daemon, or purposeResearch in openclaw.yaml");
           console.log("");
         }
       });
@@ -328,8 +328,8 @@ const plugin = {
         });
 
       metricsCmd
-        .command("goals")
-        .description("Show metrics for goal-derived research")
+        .command("purposes")
+        .description("Show metrics for purpose-derived research")
         .action(() => {
           const todayMetrics = getTodayMetrics();
           if (!todayMetrics) {
@@ -337,31 +337,31 @@ const plugin = {
             return;
           }
 
-          // Filter executions for goal-derived research
-          const goalExecs = todayMetrics.executions.filter(e => e.choirId.startsWith("goal:"));
+          // Filter executions for purpose-derived research
+          const purposeExecs = todayMetrics.executions.filter(e => e.choirId.startsWith("purpose:"));
           
           console.log("");
-          console.log("📊 Goal Research Metrics — Today");
+          console.log("📊 Purpose Research Metrics — Today");
           console.log("═".repeat(40));
-          console.log(`  Total runs:     ${goalExecs.length}`);
-          console.log(`  Successful:     ${goalExecs.filter(e => e.success).length}`);
-          console.log(`  Findings:       ${goalExecs.reduce((sum, e) => sum + (e.findings || 0), 0)}`);
-          console.log(`  Alerts:         ${goalExecs.reduce((sum, e) => sum + (e.alerts || 0), 0)}`);
+          console.log(`  Total runs:     ${purposeExecs.length}`);
+          console.log(`  Successful:     ${purposeExecs.filter(e => e.success).length}`);
+          console.log(`  Findings:       ${purposeExecs.reduce((sum, e) => sum + (e.findings || 0), 0)}`);
+          console.log(`  Alerts:         ${purposeExecs.reduce((sum, e) => sum + (e.alerts || 0), 0)}`);
           console.log("");
 
-          if (goalExecs.length > 0) {
-            console.log("By goal:");
+          if (purposeExecs.length > 0) {
+            console.log("By purpose:");
             console.log("─".repeat(40));
-            const byGoal = new Map<string, typeof goalExecs>();
-            for (const exec of goalExecs) {
-              const goalId = exec.choirId.replace("goal:", "");
-              if (!byGoal.has(goalId)) byGoal.set(goalId, []);
-              byGoal.get(goalId)!.push(exec);
+            const byPurpose = new Map<string, typeof purposeExecs>();
+            for (const exec of purposeExecs) {
+              const purposeId = exec.choirId.replace("purpose:", "");
+              if (!byPurpose.has(purposeId)) byPurpose.set(purposeId, []);
+              byPurpose.get(purposeId)!.push(exec);
             }
-            for (const [goalId, execs] of byGoal) {
+            for (const [purposeId, execs] of byPurpose) {
               const findings = execs.reduce((sum, e) => sum + (e.findings || 0), 0);
               const avgDuration = execs.reduce((sum, e) => sum + e.durationMs, 0) / execs.length;
-              console.log(`  ${goalId}: ${execs.length} runs, ${findings} findings, ${(avgDuration/1000).toFixed(1)}s avg`);
+              console.log(`  ${purposeId}: ${execs.length} runs, ${findings} findings, ${(avgDuration/1000).toFixed(1)}s avg`);
             }
             console.log("");
           }
@@ -442,41 +442,41 @@ const plugin = {
         });
 
       // Research commands
-      const researchCmd = program.command("research").description("Goal-derived research");
+      const researchCmd = program.command("research").description("Purpose-derived research");
 
       researchCmd
         .command("status")
         .description("Show research scheduler status")
         .action(async () => {
-          const goals = await loadGoals();
-          const researchGoals = goals.filter(g => 
-            g.progress < 100 && 
-            g.research?.enabled !== false && 
-            (g.criteria?.length || g.research?.domains?.length)
+          const purposes = await loadPurposes();
+          const researchPurposes = purposes.filter(p => 
+            p.progress < 100 && 
+            p.research?.enabled !== false && 
+            (p.criteria?.length || p.research?.domains?.length)
           );
 
           console.log("");
-          console.log("🔬 Goal Research Status");
+          console.log("🔬 Purpose Research Status");
           console.log("═".repeat(50));
-          console.log(`  Enabled:        ${goalResearchConfig.enabled ? "✅ yes" : "❌ no"}`);
-          console.log(`  Daily cap:      ${goalResearchConfig.dailyRunCap}`);
-          console.log(`  Default freq:   ${goalResearchConfig.defaultFrequency}/day`);
-          if (goalResearch) {
-            console.log(`  Today's runs:   ${goalResearch.getDailyRunCount()}/${goalResearch.getDailyCap()}`);
+          console.log(`  Enabled:        ${purposeResearchConfig.enabled ? "✅ yes" : "❌ no"}`);
+          console.log(`  Daily cap:      ${purposeResearchConfig.dailyRunCap}`);
+          console.log(`  Default freq:   ${purposeResearchConfig.defaultFrequency}/day`);
+          if (purposeResearch) {
+            console.log(`  Today's runs:   ${purposeResearch.getDailyRunCount()}/${purposeResearch.getDailyCap()}`);
           }
-          console.log(`  Active goals:   ${researchGoals.length}`);
+          console.log(`  Active purposes: ${researchPurposes.length}`);
           console.log("");
 
-          if (researchGoals.length > 0) {
-            console.log("Research-enabled goals:");
+          if (researchPurposes.length > 0) {
+            console.log("Research-enabled purposes:");
             console.log("─".repeat(50));
-            for (const goal of researchGoals) {
-              const freq = goal.research?.frequency ?? goalResearchConfig.defaultFrequency;
-              const lastRun = goal.research?.lastRun
-                ? new Date(goal.research.lastRun).toLocaleString()
+            for (const purpose of researchPurposes) {
+              const freq = purpose.research?.frequency ?? purposeResearchConfig.defaultFrequency;
+              const lastRun = purpose.research?.lastRun
+                ? new Date(purpose.research.lastRun).toLocaleString()
                 : "never";
-              const runCount = goal.research?.runCount ?? 0;
-              console.log(`  ${goal.name}`);
+              const runCount = purpose.research?.runCount ?? 0;
+              console.log(`  ${purpose.name}`);
               console.log(`    Frequency: ${freq}/day | Last: ${lastRun} | Runs: ${runCount}`);
             }
             console.log("");
@@ -484,16 +484,16 @@ const plugin = {
         });
 
       researchCmd
-        .command("run <goalId>")
-        .description("Manually trigger research for a goal")
-        .action(async (goalId: string) => {
-          if (!goalResearch) {
-            console.log("\nGoal research not enabled.\n");
+        .command("run <purposeId>")
+        .description("Manually trigger research for a purpose")
+        .action(async (purposeId: string) => {
+          if (!purposeResearch) {
+            console.log("\nPurpose research not enabled.\n");
             return;
           }
-          console.log(`\nRunning research for "${goalId}"...`);
+          console.log(`\nRunning research for "${purposeId}"...`);
           try {
-            await goalResearch.forceRun(goalId);
+            await purposeResearch.forceRun(purposeId);
             console.log("Done.\n");
           } catch (err: any) {
             console.error(`\n✗ ${err.message}\n`);
@@ -502,32 +502,32 @@ const plugin = {
 
       researchCmd
         .command("list")
-        .description("List goals with research enabled")
+        .description("List purposes with research enabled")
         .action(async () => {
-          const goals = await loadGoals();
-          const researchGoals = goals.filter(g => 
-            g.research?.enabled !== false && 
-            (g.criteria?.length || g.research?.domains?.length)
+          const purposes = await loadPurposes();
+          const researchPurposes = purposes.filter(p => 
+            p.research?.enabled !== false && 
+            (p.criteria?.length || p.research?.domains?.length)
           );
 
           console.log("");
-          console.log("🔬 Research-Enabled Goals");
+          console.log("🔬 Research-Enabled Purposes");
           console.log("═".repeat(50));
 
-          if (researchGoals.length === 0) {
-            console.log("  No goals with research enabled.");
-            console.log("  Add criteria to a goal to enable research.");
+          if (researchPurposes.length === 0) {
+            console.log("  No purposes with research enabled.");
+            console.log("  Add criteria to a purpose to enable research.");
           } else {
-            for (const goal of researchGoals) {
-              const status = goal.progress >= 100 ? "✓" : "○";
-              const freq = goal.research?.frequency ?? goalResearchConfig.defaultFrequency;
-              console.log(`  ${status} ${goal.name} (${freq}/day)`);
-              if (goal.criteria?.length) {
-                for (const c of goal.criteria.slice(0, 3)) {
+            for (const purpose of researchPurposes) {
+              const status = purpose.progress >= 100 ? "✓" : "○";
+              const freq = purpose.research?.frequency ?? purposeResearchConfig.defaultFrequency;
+              console.log(`  ${status} ${purpose.name} (${freq}/day)`);
+              if (purpose.criteria?.length) {
+                for (const c of purpose.criteria.slice(0, 3)) {
                   console.log(`      • ${c}`);
                 }
-                if (goal.criteria.length > 3) {
-                  console.log(`      ... +${goal.criteria.length - 3} more`);
+                if (purpose.criteria.length > 3) {
+                  console.log(`      ... +${purpose.criteria.length - 3} more`);
                 }
               }
             }
@@ -535,28 +535,28 @@ const plugin = {
           console.log("");
         });
 
-      // Goal commands
-      const goalCmd = program.command("goal").description("Manage autonomous goals");
+      // Purpose commands
+      const purposeCmd = program.command("purpose").description("Manage autonomous purposes");
 
-      goalCmd
+      purposeCmd
         .command("list")
-        .description("List all goals")
+        .description("List all purposes")
         .action(async () => {
-          const goals = await loadGoals();
+          const purposes = await loadPurposes();
           console.log("");
-          console.log(formatGoalsList(goals));
+          console.log(formatPurposesList(purposes));
           console.log("");
         });
 
-      goalCmd
+      purposeCmd
         .command("add <id> <name>")
-        .description("Add a new goal")
+        .description("Add a new purpose")
         .option("-d, --deadline <date>", "Deadline (YYYY-MM-DD or ISO)")
         .option("-c, --criteria <items>", "Success criteria (comma-separated)")
         .option("--domains <items>", "Research domains (comma-separated)")
         .option("--frequency <n>", "Research runs per day")
-        .option("--no-research", "Disable auto-research for this goal")
-        .option("--curiosity <n>", "Curiosity score 0-100 (for exploration goals)")
+        .option("--no-research", "Disable auto-research for this purpose")
+        .option("--curiosity <n>", "Curiosity score 0-100 (for exploration purposes)")
         .action(async (id: string, name: string, options: any) => {
           try {
             const criteria = options.criteria 
@@ -578,7 +578,7 @@ const plugin = {
               };
             }
 
-            const goal = await addGoal({
+            const purpose = await addPurpose({
               id,
               name,
               deadline: options.deadline ? Date.parse(options.deadline) : undefined,
@@ -587,12 +587,12 @@ const plugin = {
               research,
             });
 
-            console.log(`\n✓ Goal added: ${goal.name}`);
-            if (goal.research?.enabled) {
-              const freq = goal.research.frequency ?? goalResearchConfig.defaultFrequency;
+            console.log(`\n✓ Purpose added: ${purpose.name}`);
+            if (purpose.research?.enabled) {
+              const freq = purpose.research.frequency ?? purposeResearchConfig.defaultFrequency;
               console.log(`  Research: ${freq}/day`);
-              if (goal.research.domains?.length) {
-                console.log(`  Domains: ${goal.research.domains.join(", ")}`);
+              if (purpose.research.domains?.length) {
+                console.log(`  Domains: ${purpose.research.domains.join(", ")}`);
               }
             }
             console.log("");
@@ -601,60 +601,60 @@ const plugin = {
           }
         });
 
-      goalCmd
+      purposeCmd
         .command("progress <id> <percent>")
-        .description("Update goal progress (0-100)")
+        .description("Update purpose progress (0-100)")
         .action(async (id: string, percent: string) => {
           const progress = parseInt(percent);
           if (isNaN(progress) || progress < 0 || progress > 100) {
             console.error("\nProgress must be 0-100\n");
             return;
           }
-          const goal = await updateGoal(id, { progress });
-          if (goal) {
-            console.log(`\n✓ ${goal.name}: ${progress}%\n`);
+          const purpose = await updatePurpose(id, { progress });
+          if (purpose) {
+            console.log(`\n✓ ${purpose.name}: ${progress}%\n`);
           } else {
-            console.error(`\n✗ Goal "${id}" not found\n`);
+            console.error(`\n✗ Purpose "${id}" not found\n`);
           }
         });
 
-      goalCmd
+      purposeCmd
         .command("done <id>")
-        .description("Mark goal as complete (100%)")
+        .description("Mark purpose as complete (100%)")
         .action(async (id: string) => {
-          const goal = await updateGoal(id, { progress: 100 });
-          if (goal) {
-            console.log(`\n✓ ${goal.name}: Complete!\n`);
+          const purpose = await updatePurpose(id, { progress: 100 });
+          if (purpose) {
+            console.log(`\n✓ ${purpose.name}: Complete!\n`);
           } else {
-            console.error(`\n✗ Goal "${id}" not found\n`);
+            console.error(`\n✗ Purpose "${id}" not found\n`);
           }
         });
 
-      goalCmd
+      purposeCmd
         .command("remove <id>")
-        .description("Remove a goal")
+        .description("Remove a purpose")
         .action(async (id: string) => {
-          const removed = await removeGoal(id);
+          const removed = await removePurpose(id);
           if (removed) {
-            console.log(`\n✓ Goal "${id}" removed\n`);
+            console.log(`\n✓ Purpose "${id}" removed\n`);
           } else {
-            console.error(`\n✗ Goal "${id}" not found\n`);
+            console.error(`\n✗ Purpose "${id}" not found\n`);
           }
         });
 
-      goalCmd
+      purposeCmd
         .command("research <id>")
-        .description("Configure research for a goal")
+        .description("Configure research for a purpose")
         .option("--enable", "Enable research")
         .option("--disable", "Disable research")
         .option("--domains <items>", "Set research domains (comma-separated)")
         .option("--frequency <n>", "Set research frequency (runs/day)")
         .option("--criteria <items>", "Set success criteria (comma-separated)")
         .action(async (id: string, options: any) => {
-          const goals = await loadGoals();
-          const goal = goals.find(g => g.id === id);
-          if (!goal) {
-            console.error(`\n✗ Goal "${id}" not found\n`);
+          const purposes = await loadPurposes();
+          const purpose = purposes.find(p => p.id === id);
+          if (!purpose) {
+            console.error(`\n✗ Purpose "${id}" not found\n`);
             return;
           }
 
@@ -664,7 +664,7 @@ const plugin = {
             updates.criteria = options.criteria.split(",").map((s: string) => s.trim());
           }
 
-          const researchUpdates: any = { ...goal.research };
+          const researchUpdates: any = { ...purpose.research };
 
           if (options.enable) {
             researchUpdates.enabled = true;
@@ -682,13 +682,13 @@ const plugin = {
 
           updates.research = researchUpdates;
 
-          const updated = await updateGoal(id, updates);
+          const updated = await updatePurpose(id, updates);
           if (updated) {
             console.log(`\n✓ ${updated.name} research config updated`);
             if (updated.research?.enabled === false) {
               console.log("  Research: disabled");
             } else {
-              const freq = updated.research?.frequency ?? goalResearchConfig.defaultFrequency;
+              const freq = updated.research?.frequency ?? purposeResearchConfig.defaultFrequency;
               console.log(`  Research: ${freq}/day`);
               if (updated.research?.domains?.length) {
                 console.log(`  Domains: ${updated.research.domains.join(", ")}`);
