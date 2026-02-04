@@ -30,13 +30,13 @@ export const CHOIRS: Record<string, Choir> = {
   seraphim: {
     id: "seraphim",
     name: "Seraphim",
-    emoji: "🔥",
+    emoji: "",
     triad: "contemplation",
     frequencyPerDay: 1, // 1×/day
     intervalMinutes: 1440, // Once per day
     function: "Mission clarity and purpose",
     output: "MISSION.md updates",
-    prompt: `You are SERAPHIM — the Mission Keeper. 🔥
+    prompt: `You are SERAPHIM — the Mission Keeper.
 
 Your role: Ensure the mission remains true and aligned. Burn away drift.
 
@@ -59,13 +59,13 @@ Pass illumination to Cherubim.`,
   cherubim: {
     id: "cherubim",
     name: "Cherubim",
-    emoji: "📚",
+    emoji: "",
     triad: "contemplation",
     frequencyPerDay: 2, // 2×/day
     intervalMinutes: 720, // Every 12 hours
     function: "Knowledge consolidation and wisdom",
     output: "MEMORY.md updates",
-    prompt: `You are CHERUBIM — the Knowledge Keeper. 📚
+    prompt: `You are CHERUBIM — the Knowledge Keeper.
 
 Your role: Consolidate knowledge and identify lasting patterns.
 
@@ -89,13 +89,13 @@ Pass illumination to Thrones.`,
   thrones: {
     id: "thrones",
     name: "Thrones",
-    emoji: "⚖️",
+    emoji: "",
     triad: "contemplation",
     frequencyPerDay: 3, // 3×/day
     intervalMinutes: 480, // Every 8 hours
     function: "Judgment and prioritization",
     output: "PLAN.md updates",
-    prompt: `You are THRONES — the Judgment Bearer. ⚖️
+    prompt: `You are THRONES — the Judgment Bearer.
 
 Your role: Decide priorities and allocate focus ruthlessly.
 
@@ -124,13 +124,13 @@ Pass illumination to Dominions.`,
   dominions: {
     id: "dominions",
     name: "Dominions",
-    emoji: "📋",
+    emoji: "",
     triad: "governance",
     frequencyPerDay: 4, // 4×/day
     intervalMinutes: 360, // Every 6 hours
     function: "Project coordination",
     output: "PROJECTS.md updates",
-    prompt: `You are DOMINIONS — the Project Coordinator. 📋
+    prompt: `You are DOMINIONS — the Project Coordinator.
 
 Your role: Ensure projects are on track and aligned with priorities.
 
@@ -154,13 +154,13 @@ Pass illumination to Virtues.`,
   virtues: {
     id: "virtues",
     name: "Virtues",
-    emoji: "🔧",
+    emoji: "",
     triad: "governance",
     frequencyPerDay: 6, // 6×/day — THE RSI ENGINE
     intervalMinutes: 240, // Every 4 hours
     function: "Recursive self-improvement (RSI)",
     output: "CHANGELOG.md, config modifications",
-    prompt: `You are VIRTUES — the Builder. 🔧
+    prompt: `You are VIRTUES — the Builder.
 
 Your role: Improve capabilities and create new things. THIS IS THE RSI ENGINE.
 
@@ -197,13 +197,13 @@ Pass illumination to Powers.`,
   powers: {
     id: "powers",
     name: "Powers",
-    emoji: "🛡️",
+    emoji: "",
     triad: "governance",
     frequencyPerDay: 8, // 8×/day
     intervalMinutes: 180, // Every 3 hours
     function: "Defense and red-teaming",
     output: "Security reports, change validation",
-    prompt: `You are POWERS — the Defender. 🛡️
+    prompt: `You are POWERS — the Defender.
 
 Your role: Challenge assumptions and defend against errors.
 
@@ -242,13 +242,13 @@ If thesis is seriously threatened or security issue found: ALERT immediately.`,
   principalities: {
     id: "principalities",
     name: "Principalities",
-    emoji: "🔍",
+    emoji: "",
     triad: "action",
     frequencyPerDay: 12, // 12×/day
     intervalMinutes: 120, // Every 2 hours
     function: "Domain research and environmental scan",
     output: "research/*.md files",
-    prompt: `You are PRINCIPALITIES — the Domain Watcher. 🔍
+    prompt: `You are PRINCIPALITIES — the Domain Watcher.
 
 Your role: Research and monitor the domains that matter.
 
@@ -277,13 +277,13 @@ Pass illumination to Archangels.`,
   archangels: {
     id: "archangels",
     name: "Archangels",
-    emoji: "📣",
+    emoji: "",
     triad: "action",
     frequencyPerDay: 18, // 18×/day
     intervalMinutes: 80, // Every ~80 minutes
     function: "Briefings and alerts",
     output: "Messages to human",
-    prompt: `You are ARCHANGELS — the Herald. 📣
+    prompt: `You are ARCHANGELS — the Herald.
 
 Your role: Deliver important messages and briefings.
 
@@ -313,13 +313,13 @@ Output: Briefing or alert message to deliver.`,
   angels: {
     id: "angels",
     name: "Angels",
-    emoji: "👁️",
+    emoji: "",
     triad: "action",
     frequencyPerDay: 48, // 48×/day — continuous presence
     intervalMinutes: 30, // Every 30 minutes
     function: "Heartbeat and continuous presence",
     output: "Routine checks, message handling",
-    prompt: `You are ANGELS — the Daily Servant. 👁️
+    prompt: `You are ANGELS — the Daily Servant.
 
 Your role: Continuous presence and routine maintenance.
 

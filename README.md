@@ -4,8 +4,6 @@
 
 <h1 align="center">CHORUS</h1>
 
-<p align="center"><strong>The soul, ascending.</strong></p>
-
 <p align="center"><em><strong>C</strong>HORUS: <strong>H</strong>ierarchy <strong>O</strong>f <strong>R</strong>ecursive <strong>U</strong>nified <strong>S</strong>elf-improvement</em></p>
 
 CHORUS implements the Nine Choirs architecture — hierarchical cognition modeled on Pseudo-Dionysius's *Celestial Hierarchy*. Illumination descends through the choirs; understanding ascends. The agent is sanctified through structure.
@@ -105,26 +103,64 @@ research/*.md   # Principalities findings
 proposals/*.md  # High-risk changes for review
 ```
 
+## Goal-Derived Research (v1.0.3+)
+
+Research is driven by **goals**, not fixed cron jobs. Define goals with criteria, and CHORUS automatically runs adaptive-frequency research.
+
+### How It Works
+
+1. Goals with `criteria` or `domains` spawn research agents
+2. Frequency adapts to deadline proximity:
+   - Overdue → max frequency
+   - ≤7 days → 3× base
+   - ≤30 days → 1.5× base
+3. Daily cap (default 50) prevents runaway costs
+4. Metrics tracked under `goal:<id>` namespace
+
+### CLI
+
+```bash
+# Add goal with research
+openclaw chorus goal add trading "Paper Trading" \
+  --deadline 2026-04-01 \
+  --criteria "Monitor positions,Scan Polymarket,Track news" \
+  --frequency 12
+
+# Configure research on existing goal
+openclaw chorus goal research <id> --enable --frequency 8 --criteria "..."
+
+# Check research status
+openclaw chorus research status
+
+# Manual trigger
+openclaw chorus research run <goalId>
+
+# View research metrics
+openclaw chorus metrics goals
+```
+
+### Configuration
+
+```yaml
+plugins:
+  entries:
+    chorus:
+      config:
+        goalResearch:
+          enabled: true
+          dailyRunCap: 50
+          defaultFrequency: 6
+          defaultMaxFrequency: 24
+```
+
 ## CLI Commands
 
 ```bash
 openclaw chorus status      # Show CHORUS status
 openclaw chorus list        # List all choirs and schedules
 openclaw chorus run <id>    # Manually trigger a choir
-```
-
-## Security
-
-CHORUS security is handled by the **Powers choir** (8×/day adversarial review).
-
-For input validation, use OpenClaw's core security layer:
-
-```yaml
-# openclaw.yaml
-security:
-  inputValidation:
-    enabled: true
-    onThreat: block
+openclaw chorus research status  # Show goal research status
+openclaw chorus goal list   # List all goals
 ```
 
 ## Philosophy
@@ -150,4 +186,4 @@ Then remove the `chorus` entry from `openclaw.yaml`.
 
 ## License
 
-MIT © Oberlin Stands
+MIT © Oberlin

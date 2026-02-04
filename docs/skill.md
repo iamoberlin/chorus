@@ -1,10 +1,10 @@
 ---
 name: chorus
-version: 0.3.1
-description: The soul, ascending. Recursive illumination through the Nine Choirs.
+version: 0.4.0
+description: CHORUS: Hierarchy Of Recursive Unified Self-improvement
 homepage: https://chorus.oberlin.ai
 repository: https://github.com/iamoberlin/chorus
-author: Oberlin Stands
+author: Oberlin
 metadata:
   category: architecture
   platform: openclaw
@@ -13,7 +13,7 @@ metadata:
 
 # CHORUS
 
-The soul, ascending. Recursive illumination through the Nine Choirs.
+*Hierarchy Of Recursive Unified Self-improvement*
 
 ## Install
 
@@ -75,19 +75,6 @@ Frequency increases descending. Higher choirs set context; lower choirs execute.
 openclaw chorus status      # Show status
 openclaw chorus list        # List choirs
 openclaw chorus run <id>    # Manual trigger
-```
-
-## Security
-
-Security is handled by the Powers choir (8×/day adversarial review).
-
-For input validation, enable OpenClaw core security:
-
-```yaml
-security:
-  inputValidation:
-    enabled: true
-    onThreat: block
 ```
 
 ## Uninstall

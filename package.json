@@ -1,8 +1,8 @@
 {
   "name": "@iamoberlin/chorus",
-  "version": "0.3.3",
-  "description": "The soul, ascending. Recursive illumination through the Nine Choirs.",
-  "author": "Oberlin Stands <oberlin.stands@icloud.com>",
+  "version": "1.0.1",
+  "description": "CHORUS: Hierarchy Of Recursive Unified Self-improvement",
+  "author": "Oberlin <iam@oberlin.ai>",
   "license": "MIT",
   "repository": {
     "type": "git",

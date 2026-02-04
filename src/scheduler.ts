@@ -8,6 +8,7 @@
 import type { OpenClawPluginService, PluginLogger } from "openclaw/plugin-sdk";
 import type { ChorusConfig } from "./config.js";
 import { CHOIRS, shouldRunChoir, CASCADE_ORDER, type Choir } from "./choirs.js";
+import { recordExecution, type ChoirExecution } from "./metrics.js";
 
 interface ChoirContext {
   choirId: string;
@@ -53,8 +54,17 @@ export function createChoirScheduler(
   // Execute a choir
   async function executeChoir(choir: Choir): Promise<void> {
     const state = runState.get(choir.id) || { runCount: 0 };
+    const startTime = Date.now();
 
     log.info(`[chorus] ${choir.emoji} Executing ${choir.name} (run #${state.runCount + 1})`);
+
+    const execution: ChoirExecution = {
+      choirId: choir.id,
+      timestamp: new Date().toISOString(),
+      durationMs: 0,
+      success: false,
+      outputLength: 0,
+    };
 
     try {
       const prompt = buildPrompt(choir);
@@ -68,6 +78,15 @@ export function createChoirScheduler(
       });
 
       const output = result?.response || "(no response)";
+      execution.durationMs = Date.now() - startTime;
+      execution.success = true;
+      execution.outputLength = output.length;
+      execution.tokensUsed = result?.meta?.tokensUsed || estimateTokens(output);
+
+      // Parse output for metrics (findings, alerts, improvements)
+      execution.findings = countFindings(output);
+      execution.alerts = countAlerts(output);
+      execution.improvements = extractImprovements(output, choir.id);
 
       // Store context for downstream choirs
       contextStore.set(choir.id, {
@@ -83,7 +102,7 @@ export function createChoirScheduler(
         runCount: state.runCount + 1,
       });
 
-      log.info(`[chorus] ${choir.emoji} ${choir.name} completed`);
+      log.info(`[chorus] ${choir.emoji} ${choir.name} completed (${(execution.durationMs/1000).toFixed(1)}s)`);
 
       // Log illumination flow
       if (choir.passesTo.length > 0) {
@@ -91,8 +110,71 @@ export function createChoirScheduler(
       }
 
     } catch (error) {
+      execution.durationMs = Date.now() - startTime;
+      execution.success = false;
+      execution.error = String(error);
       log.error(`[chorus] ${choir.name} failed: ${error}`);
     }
+
+    // Record metrics
+    recordExecution(execution);
+  }
+
+  // Estimate tokens from output length (rough: 1 token ≈ 4 chars)
+  function estimateTokens(text: string): number {
+    return Math.ceil(text.length / 4);
+  }
+
+  // Count research findings in output
+  function countFindings(output: string): number {
+    const patterns = [
+      /found\s+(\d+)\s+(?:papers?|articles?|findings?)/gi,
+      /(\d+)\s+(?:new|notable)\s+(?:papers?|findings?)/gi,
+      /key\s+findings?:/gi,
+      /\*\*finding/gi,
+    ];
+    let count = 0;
+    for (const pattern of patterns) {
+      const matches = output.match(pattern);
+      if (matches) count += matches.length;
+    }
+    return count;
+  }
+
+  // Count alerts in output
+  function countAlerts(output: string): number {
+    const patterns = [
+      /\balert\b/gi,
+      /\bnotif(?:y|ied|ication)\b/gi,
+      /\burgent\b/gi,
+      /\bimmediate\s+attention\b/gi,
+    ];
+    let count = 0;
+    for (const pattern of patterns) {
+      const matches = output.match(pattern);
+      if (matches) count += matches.length;
+    }
+    return Math.min(count, 5); // Cap at 5 to avoid false positives
+  }
+
+  // Extract improvements from RSI (Virtues) output
+  function extractImprovements(output: string, choirId: string): string[] {
+    if (choirId !== "virtues") return [];
+    const improvements: string[] = [];
+    const patterns = [
+      /implemented[:\s]+([^\n.]+)/gi,
+      /improved[:\s]+([^\n.]+)/gi,
+      /created[:\s]+([^\n.]+)/gi,
+      /updated[:\s]+([^\n.]+)/gi,
+    ];
+    for (const pattern of patterns) {
+      let match;
+      while ((match = pattern.exec(output)) !== null) {
+        const item = match[1].trim().slice(0, 50);
+        if (item.length > 5) improvements.push(item);
+      }
+    }
+    return improvements.slice(0, 5); // Cap at 5
   }
 
   // Check and run due choirs
