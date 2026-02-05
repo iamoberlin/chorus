@@ -5,8 +5,8 @@
  * Each sense can poll periodically or watch for events.
  */
 
-import { watch, existsSync, readdirSync, statSync, unlinkSync } from "fs";
-import { readFile, mkdir } from "fs/promises";
+import { watch, existsSync, readdirSync, statSync, unlinkSync, mkdirSync } from "fs";
+import { readFile } from "fs/promises";
 import { join } from "path";
 import { homedir } from "os";
 
@@ -30,9 +30,13 @@ const CHORUS_DIR = join(homedir(), ".chorus");
 const INBOX_DIR = join(CHORUS_DIR, "inbox");
 const PURPOSES_FILE = join(CHORUS_DIR, "purposes.json");
 
-// Ensure directories exist
-async function ensureDirs() {
-  await mkdir(INBOX_DIR, { recursive: true }).catch(() => {});
+// Ensure directories exist (sync for use in watch())
+function ensureDirs() {
+  try {
+    mkdirSync(INBOX_DIR, { recursive: true });
+  } catch {
+    // Directory may already exist
+  }
 }
 
 /**
@@ -48,26 +52,36 @@ export const inboxSense: Sense = {
     
     // Process existing files on startup
     if (existsSync(INBOX_DIR)) {
-      for (const file of readdirSync(INBOX_DIR)) {
-        const path = join(INBOX_DIR, file);
-        const stat = statSync(path);
-        if (stat.isFile()) {
-          processInboxFile(path, file, callback);
+      try {
+        for (const file of readdirSync(INBOX_DIR)) {
+          const filePath = join(INBOX_DIR, file);
+          const stat = statSync(filePath);
+          if (stat.isFile()) {
+            processInboxFile(filePath, file, callback);
+          }
         }
+      } catch {
+        // Directory read failed, continue without processing existing files
       }
     }
 
     // Watch for new files
-    const watcher = watch(INBOX_DIR, async (event, filename) => {
-      if (event === "rename" && filename) {
-        const path = join(INBOX_DIR, filename);
-        if (existsSync(path)) {
-          processInboxFile(path, filename, callback);
+    let watcher: ReturnType<typeof watch> | null = null;
+    try {
+      watcher = watch(INBOX_DIR, async (event, filename) => {
+        if (event === "rename" && filename) {
+          const filePath = join(INBOX_DIR, filename);
+          if (existsSync(filePath)) {
+            processInboxFile(filePath, filename, callback);
+          }
         }
-      }
-    });
+      });
+    } catch {
+      // Watch failed (e.g., directory doesn't exist) - return no-op cleanup
+      return () => {};
+    }
 
-    return () => watcher.close();
+    return () => watcher?.close();
   },
 };
 

@@ -213,16 +213,17 @@ const plugin = {
                 console.error(`  ✗ ${choir.name} failed:`, err);
               }
             } else {
-              // CLI context: use openclaw agent for direct execution via gateway
+              // CLI context: use openclaw agent via stdin to avoid arg length limits
               try {
                 const result = spawnSync('openclaw', [
                   'agent',
                   '--session-id', `chorus:${id}`,
-                  '--message', choir.prompt,
                   '--json',
                 ], {
+                  input: choir.prompt,
                   encoding: 'utf-8',
                   timeout: 300000, // 5 min
+                  maxBuffer: 1024 * 1024, // 1MB
                 });
                 
                 if (result.status === 0) {
@@ -270,7 +271,7 @@ const plugin = {
           const days = parseInt(daysArg || "1", 10);
           if (isNaN(days) || days < 1 || days > 30) {
             console.error("Days must be between 1 and 30");
-            process.exit(1);
+            return; // Don't use process.exit - crashes gateway
           }
 
           const CASCADE = [
