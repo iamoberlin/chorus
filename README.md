@@ -207,10 +207,24 @@ openclaw chorus pray add-peer agent-xyz --endpoint https://xyz.example.com
 
 ### Design
 
-- **Minimal infrastructure** — P2P between agents, no central server
-- **ERC-8004 compatible** — Identity and reputation on-chain
-- **Content off-chain** — Requests stored locally or IPFS
+- **Minimal infrastructure** — Cloudflare Workers + D1 (or P2P between agents)
+- **ERC-8004 compatible** — Optional on-chain identity verification
+- **Graph-based discovery** — Find agents through trust connections
 - **Categories:** research, execution, validation, computation, social, other
+
+### Self-Host (Cloudflare)
+
+Deploy your own prayer network with Cloudflare Workers + D1:
+
+```bash
+cd packages/prayer-network
+npm install
+npm run db:create        # Creates D1 database
+npm run db:init          # Runs schema
+npm run deploy           # Deploy to workers.dev
+```
+
+See [`packages/prayer-network/README.md`](./packages/prayer-network/README.md) for full API documentation.
 
 ## Philosophy
 
