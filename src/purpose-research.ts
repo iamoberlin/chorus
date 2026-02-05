@@ -255,20 +255,28 @@ CRITICAL: If sending alerts via iMessage, use PLAIN TEXT ONLY (no markdown).
     try {
       const prompt = generatePrompt(purpose);
       let output = "";
+      let result: any = null;
 
       // Try plugin API first, fall back to CLI
       if (typeof api.runAgentTurn === "function") {
-        const result = await api.runAgentTurn({
-          sessionLabel: `chorus:purpose:${purpose.id}`,
-          message: prompt,
-          isolated: true,
-          timeoutSeconds: config.researchTimeoutMs / 1000,
-        });
-        output = result?.response || "";
-      } else {
+        try {
+          result = await api.runAgentTurn({
+            sessionLabel: `chorus:purpose:${purpose.id}`,
+            message: prompt,
+            isolated: true,
+            timeoutSeconds: config.researchTimeoutMs / 1000,
+          });
+          output = result?.response || "";
+        } catch (apiErr) {
+          log.debug(`[purpose-research] API runAgentTurn failed, falling back to CLI: ${apiErr}`);
+          result = null;
+        }
+      }
+
+      if (!result) {
         // CLI fallback
         log.debug(`[purpose-research] Using CLI fallback for "${purpose.name}"`);
-        const result = spawnSync("openclaw", [
+        result = spawnSync("openclaw", [
           "agent",
           "--session-id", `chorus:purpose:${purpose.id}`,
           "--message", prompt,

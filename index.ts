@@ -260,16 +260,17 @@ const plugin = {
         });
 
       // Vision command - simulate multiple days of cognitive cycles
+      // NOTE: This is CLI-only, runs via spawned openclaw agent calls
       program
         .command("vision [days]")
         .description("Simulate multiple days of choir cycles (prophetic vision)")
         .option("--dry-run", "Show what would run without executing")
-        .option("--fast", "Reduce delay between choirs")
-        .action(async (daysArg?: string, options?: { dryRun?: boolean; fast?: boolean }) => {
+        .action((daysArg?: string, options?: { dryRun?: boolean }) => {
+          // Synchronous wrapper to avoid async issues in commander
           const days = parseInt(daysArg || "1", 10);
           if (isNaN(days) || days < 1 || days > 30) {
             console.error("Days must be between 1 and 30");
-            return;
+            process.exit(1);
           }
 
           const CASCADE = [
@@ -278,7 +279,7 @@ const plugin = {
             "principalities", "archangels", "angels"
           ];
           
-          // Context store for illumination passing
+          // Context store for illumination passing (simplified for vision)
           const contextStore: Map<string, string> = new Map();
 
           console.log("");
@@ -293,95 +294,71 @@ const plugin = {
           let totalRuns = 0;
           let successfulRuns = 0;
 
-          for (let day = 1; day <= days; day++) {
-            console.log(`📅 Day ${day}/${days}`);
-            console.log("─".repeat(40));
+          try {
+            for (let day = 1; day <= days; day++) {
+              console.log(`📅 Day ${day}/${days}`);
+              console.log("─".repeat(40));
 
-            for (const choirId of CASCADE) {
-              const choir = CHOIRS[choirId];
-              if (!choir) continue;
+              for (const choirId of CASCADE) {
+                const choir = CHOIRS[choirId];
+                if (!choir) continue;
 
-              // Build prompt with context from upstream choirs
-              let prompt = choir.prompt;
-              for (const upstreamId of choir.receivesFrom) {
-                const placeholder = `{${upstreamId}_context}`;
-                const ctx = contextStore.get(upstreamId);
-                const contextText = ctx || `(day ${day} context from ${upstreamId})`;
-                prompt = prompt.replace(placeholder, contextText);
-              }
+                totalRuns++;
 
-              // Add vision context to prompt
-              const visionContext = `\n\n[VISION MODE: Day ${day}/${days} of simulated cognitive cycle]`;
-              prompt = prompt + visionContext;
+                if (options?.dryRun) {
+                  console.log(`  ${choir.emoji} ${choir.name} (would run)`);
+                  contextStore.set(choirId, `[Simulated ${choir.name} output for day ${day}]`);
+                  continue;
+                }
 
-              totalRuns++;
+                process.stdout.write(`  ${choir.emoji} ${choir.name}...`);
 
-              if (options?.dryRun) {
-                console.log(`  ${choir.emoji} ${choir.name} (would run)`);
-                // Simulate context for dry run
-                contextStore.set(choirId, `[Simulated ${choir.name} output for day ${day}]`);
-                continue;
-              }
+                try {
+                  // Build a simplified prompt for vision mode
+                  const visionPrompt = `You are running as ${choir.name} in VISION MODE (day ${day}/${days}).
+Your role: ${choir.function}
+Output: ${choir.output}
 
-              process.stdout.write(`  ${choir.emoji} ${choir.name}...`);
+This is a simulated cognitive cycle. Provide a brief summary of what you would do/output.
+Keep response under 500 words.`;
 
-              try {
-                // Execute via gateway
-                if (typeof api.runAgentTurn === 'function') {
-                  const result = await api.runAgentTurn({
-                    sessionLabel: `chorus:vision:${choirId}:day${day}`,
-                    message: prompt,
-                    isolated: true,
-                    timeoutSeconds: 300,
-                  });
-                  const output = result?.response || '';
-                  contextStore.set(choirId, output.slice(0, 1500));
-                  successfulRuns++;
-                  console.log(` ✓`);
-                } else {
-                  // CLI fallback
+                  // Use spawnSync with stdin to avoid arg length limits
                   const result = spawnSync('openclaw', [
                     'agent',
-                    '--session-id', `chorus:vision:${choirId}:day${day}`,
-                    '--message', prompt,
+                    '--session-id', `chorus:vision:${choirId}:d${day}`,
                     '--json',
                   ], {
+                    input: visionPrompt,
                     encoding: 'utf-8',
-                    timeout: 300000,
+                    timeout: 120000, // 2 min timeout per choir
+                    maxBuffer: 1024 * 1024, // 1MB buffer
                   });
 
-                  if (result.status === 0) {
+                  if (result.status === 0 && result.stdout) {
                     try {
-                      const json = JSON.parse(result.stdout || '{}');
+                      const json = JSON.parse(result.stdout);
                       const text = json.result?.payloads?.[0]?.text || '';
-                      contextStore.set(choirId, text.slice(0, 1500));
+                      contextStore.set(choirId, text.slice(0, 500));
+                      successfulRuns++;
+                      console.log(` ✓`);
                     } catch {
                       contextStore.set(choirId, `[${choir.name} completed]`);
+                      successfulRuns++;
+                      console.log(` ✓`);
                     }
-                    successfulRuns++;
-                    console.log(` ✓`);
                   } else {
-                    console.log(` ✗`);
+                    const errMsg = (result.stderr || result.error?.message || 'unknown error').slice(0, 100);
+                    console.log(` ✗ (${errMsg})`);
                   }
+                } catch (err: any) {
+                  console.log(` ✗ ${(err.message || 'error').slice(0, 50)}`);
                 }
-              } catch (err: any) {
-                console.log(` ✗ ${err.message?.slice(0, 50) || 'failed'}`);
               }
 
-              // Brief pause between choirs (unless --fast)
-              if (!options?.fast && !options?.dryRun) {
-                await new Promise(r => setTimeout(r, 1000));
-              }
-            }
-
-            console.log("");
-
-            // Pause between days (unless --fast or last day)
-            if (day < days && !options?.fast && !options?.dryRun) {
-              console.log("  ⏳ Transitioning to next day...");
-              await new Promise(r => setTimeout(r, 2000));
               console.log("");
             }
+          } catch (outerErr: any) {
+            console.error(`\nVision error: ${outerErr.message || outerErr}`);
           }
 
           const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
