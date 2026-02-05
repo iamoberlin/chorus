@@ -35,8 +35,10 @@ import {
   DEFAULT_PURPOSE_RESEARCH_CONFIG,
   type PurposeResearchConfig,
 } from "./src/purpose-research.js";
+import * as prayers from "./src/prayers/prayers.js";
+import * as prayerStore from "./src/prayers/store.js";
 
-const VERSION = "1.1.3";
+const VERSION = "1.2.0";
 
 const plugin = {
   id: "chorus",
@@ -696,6 +698,154 @@ const plugin = {
             }
             console.log("");
           }
+        });
+
+      // Prayer Requests - Agent Social Network
+      const prayerCmd = program.command("pray").description("Prayer requests - agent social network");
+
+      prayerCmd
+        .command("ask <content>")
+        .description("Create a prayer request")
+        .option("-c, --category <cat>", "Category (research|execution|validation|computation|social|other)")
+        .option("-t, --title <title>", "Title (defaults to first 50 chars)")
+        .action((content: string, options: { category?: string; title?: string }) => {
+          const request = prayers.createRequest({
+            type: 'ask',
+            category: (options.category || 'other') as any,
+            title: options.title || content.slice(0, 50),
+            content,
+            expiresIn: 24 * 60 * 60 * 1000
+          });
+          console.log(`\n🙏 Prayer request created: ${request.id.slice(0, 8)}...`);
+          console.log(`   Title: ${request.title}`);
+          console.log(`   Status: ${request.status}\n`);
+        });
+
+      prayerCmd
+        .command("list")
+        .description("List prayer requests")
+        .option("-s, --status <status>", "Filter by status")
+        .option("-m, --mine", "Show only my requests")
+        .action((options: { status?: string; mine?: boolean }) => {
+          const requests = prayers.listRequests({
+            status: options.status as any,
+            mine: options.mine
+          });
+          console.log(`\n🙏 Prayer Requests (${requests.length})\n`);
+          if (requests.length === 0) {
+            console.log("   No requests found.\n");
+            return;
+          }
+          for (const req of requests) {
+            const icon = req.type === 'ask' ? '🙏' : '✋';
+            console.log(`   [${req.status.toUpperCase()}] ${req.id.slice(0, 8)}... ${icon} ${req.title}`);
+            console.log(`      From: ${req.from.name || req.from.id.slice(0, 12)} | Category: ${req.category}`);
+          }
+          console.log("");
+        });
+
+      prayerCmd
+        .command("accept <id>")
+        .description("Accept a prayer request")
+        .action((id: string) => {
+          const all = prayers.listRequests({});
+          const match = all.find(r => r.id.startsWith(id));
+          if (!match) {
+            console.error("\n✗ Request not found\n");
+            return;
+          }
+          const response = prayers.acceptRequest(match.id);
+          if (response) {
+            console.log(`\n✓ Accepted: ${match.title}\n`);
+          } else {
+            console.error("\n✗ Could not accept (expired or already taken)\n");
+          }
+        });
+
+      prayerCmd
+        .command("complete <id> <result>")
+        .description("Mark request as complete")
+        .action((id: string, result: string) => {
+          const all = prayers.listRequests({});
+          const match = all.find(r => r.id.startsWith(id));
+          if (!match) {
+            console.error("\n✗ Request not found\n");
+            return;
+          }
+          const response = prayers.completeRequest(match.id, result);
+          if (response) {
+            console.log(`\n✓ Marked complete. Awaiting confirmation.\n`);
+          } else {
+            console.error("\n✗ Could not complete (not accepted by you?)\n");
+          }
+        });
+
+      prayerCmd
+        .command("confirm <id>")
+        .description("Confirm completion")
+        .option("--reject", "Reject/dispute the completion")
+        .action((id: string, options: { reject?: boolean }) => {
+          const all = prayers.listRequests({});
+          const match = all.find(r => r.id.startsWith(id));
+          if (!match) {
+            console.error("\n✗ Request not found\n");
+            return;
+          }
+          const detail = prayers.getRequest(match.id);
+          const completion = detail?.responses.find(r => r.action === 'complete');
+          if (!completion) {
+            console.error("\n✗ No completion to confirm\n");
+            return;
+          }
+          const confirmation = prayers.confirmCompletion(match.id, completion.id, !options.reject);
+          if (confirmation) {
+            console.log(options.reject ? "\n✗ Disputed\n" : "\n✓ Confirmed\n");
+          } else {
+            console.error("\n✗ Could not confirm (not your request?)\n");
+          }
+        });
+
+      prayerCmd
+        .command("reputation [agentId]")
+        .description("Show agent reputation")
+        .action((agentId?: string) => {
+          const rep = prayers.getReputation(agentId);
+          console.log(`\n📊 Reputation: ${rep.agentId.slice(0, 12)}...`);
+          console.log(`   Fulfilled: ${rep.fulfilled}`);
+          console.log(`   Requested: ${rep.requested}`);
+          console.log(`   Disputed:  ${rep.disputed}\n`);
+        });
+
+      prayerCmd
+        .command("peers")
+        .description("List known peers")
+        .action(() => {
+          const peers = prayerStore.getPeers();
+          console.log(`\n👥 Known Peers (${peers.length})\n`);
+          if (peers.length === 0) {
+            console.log("   No peers configured.\n");
+            return;
+          }
+          for (const peer of peers) {
+            console.log(`   ${peer.name || peer.id}`);
+            console.log(`      Endpoint: ${peer.endpoint || 'none'}`);
+          }
+          console.log("");
+        });
+
+      prayerCmd
+        .command("add-peer <id>")
+        .description("Add a peer")
+        .option("-e, --endpoint <url>", "Peer's gateway URL")
+        .option("-n, --name <name>", "Peer's name")
+        .action((id: string, options: { endpoint?: string; name?: string }) => {
+          prayerStore.addPeer({
+            id,
+            address: '0x0',
+            endpoint: options.endpoint,
+            name: options.name
+          });
+          console.log(`\n✓ Added peer: ${options.name || id}\n`);
         });
 
       // Inbox command (shortcut)

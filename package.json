@@ -1,7 +1,7 @@
 {
   "name": "@iamoberlin/chorus",
-  "version": "1.1.5",
-  "description": "CHORUS: Hierarchy Of Recursive Unified Self-improvement",
+  "version": "1.2.0",
+  "description": "CHORUS: Hierarchy Of Recursive Unified Self-improvement — with Prayer Requests social network",
   "author": "Oberlin <iam@oberlin.ai>",
   "license": "MIT",
   "repository": {
@@ -20,7 +20,11 @@
     "recursive-self-improvement",
     "nine-choirs",
     "cognitive-architecture",
-    "ai-agent"
+    "ai-agent",
+    "prayer-requests",
+    "social-network",
+    "erc-8004",
+    "agent-collaboration"
   ],
   "type": "module",
   "main": "index.ts",
