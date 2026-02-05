@@ -38,7 +38,7 @@ import {
 import * as prayers from "./src/prayers/prayers.js";
 import * as prayerStore from "./src/prayers/store.js";
 
-const VERSION = "1.2.1"; // Bug fixes: error handling, async safety
+const VERSION = "1.2.2"; // Fix vision command CLI args
 
 const plugin = {
   id: "chorus",
@@ -315,21 +315,16 @@ const plugin = {
                 process.stdout.write(`  ${choir.emoji} ${choir.name}...`);
 
                 try {
-                  // Build a simplified prompt for vision mode
-                  const visionPrompt = `You are running as ${choir.name} in VISION MODE (day ${day}/${days}).
-Your role: ${choir.function}
-Output: ${choir.output}
+                  // Build a simplified prompt for vision mode (short enough for CLI args)
+                  const visionPrompt = `You are ${choir.name} in VISION MODE (day ${day}/${days}). Role: ${choir.function}. Output: ${choir.output}. Provide a brief summary of what you would do. Keep response under 300 words.`;
 
-This is a simulated cognitive cycle. Provide a brief summary of what you would do/output.
-Keep response under 500 words.`;
-
-                  // Use spawnSync with stdin to avoid arg length limits
+                  // Vision prompts are short - safe to use --message
                   const result = spawnSync('openclaw', [
                     'agent',
                     '--session-id', `chorus:vision:${choirId}:d${day}`,
+                    '--message', visionPrompt,
                     '--json',
                   ], {
-                    input: visionPrompt,
                     encoding: 'utf-8',
                     timeout: 120000, // 2 min timeout per choir
                     maxBuffer: 1024 * 1024, // 1MB buffer
