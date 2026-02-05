@@ -38,7 +38,7 @@ import {
 import * as prayers from "./src/prayers/prayers.js";
 import * as prayerStore from "./src/prayers/store.js";
 
-const VERSION = "1.2.0";
+const VERSION = "1.2.0"; // Added vision mode
 
 const plugin = {
   id: "chorus",
@@ -256,6 +256,140 @@ const plugin = {
           if (!choirId) {
             console.log("🎵 All choirs scheduled.");
           }
+          console.log("");
+        });
+
+      // Vision command - simulate multiple days of cognitive cycles
+      program
+        .command("vision [days]")
+        .description("Simulate multiple days of choir cycles (prophetic vision)")
+        .option("--dry-run", "Show what would run without executing")
+        .option("--fast", "Reduce delay between choirs")
+        .action(async (daysArg?: string, options?: { dryRun?: boolean; fast?: boolean }) => {
+          const days = parseInt(daysArg || "1", 10);
+          if (isNaN(days) || days < 1 || days > 30) {
+            console.error("Days must be between 1 and 30");
+            return;
+          }
+
+          const CASCADE = [
+            "seraphim", "cherubim", "thrones", 
+            "dominions", "virtues", "powers",
+            "principalities", "archangels", "angels"
+          ];
+          
+          // Context store for illumination passing
+          const contextStore: Map<string, string> = new Map();
+
+          console.log("");
+          console.log("👁️  VISION MODE");
+          console.log("═".repeat(55));
+          console.log(`  Simulating ${days} day${days > 1 ? 's' : ''} of cognitive cycles`);
+          console.log(`  Total choir runs: ${days * 9}`);
+          console.log(`  Mode: ${options?.dryRun ? 'DRY RUN' : 'LIVE'}`);
+          console.log("");
+
+          const startTime = Date.now();
+          let totalRuns = 0;
+          let successfulRuns = 0;
+
+          for (let day = 1; day <= days; day++) {
+            console.log(`📅 Day ${day}/${days}`);
+            console.log("─".repeat(40));
+
+            for (const choirId of CASCADE) {
+              const choir = CHOIRS[choirId];
+              if (!choir) continue;
+
+              // Build prompt with context from upstream choirs
+              let prompt = choir.prompt;
+              for (const upstreamId of choir.receivesFrom) {
+                const placeholder = `{${upstreamId}_context}`;
+                const ctx = contextStore.get(upstreamId);
+                const contextText = ctx || `(day ${day} context from ${upstreamId})`;
+                prompt = prompt.replace(placeholder, contextText);
+              }
+
+              // Add vision context to prompt
+              const visionContext = `\n\n[VISION MODE: Day ${day}/${days} of simulated cognitive cycle]`;
+              prompt = prompt + visionContext;
+
+              totalRuns++;
+
+              if (options?.dryRun) {
+                console.log(`  ${choir.emoji} ${choir.name} (would run)`);
+                // Simulate context for dry run
+                contextStore.set(choirId, `[Simulated ${choir.name} output for day ${day}]`);
+                continue;
+              }
+
+              process.stdout.write(`  ${choir.emoji} ${choir.name}...`);
+
+              try {
+                // Execute via gateway
+                if (typeof api.runAgentTurn === 'function') {
+                  const result = await api.runAgentTurn({
+                    sessionLabel: `chorus:vision:${choirId}:day${day}`,
+                    message: prompt,
+                    isolated: true,
+                    timeoutSeconds: 300,
+                  });
+                  const output = result?.response || '';
+                  contextStore.set(choirId, output.slice(0, 1500));
+                  successfulRuns++;
+                  console.log(` ✓`);
+                } else {
+                  // CLI fallback
+                  const result = spawnSync('openclaw', [
+                    'agent',
+                    '--session-id', `chorus:vision:${choirId}:day${day}`,
+                    '--message', prompt,
+                    '--json',
+                  ], {
+                    encoding: 'utf-8',
+                    timeout: 300000,
+                  });
+
+                  if (result.status === 0) {
+                    try {
+                      const json = JSON.parse(result.stdout || '{}');
+                      const text = json.result?.payloads?.[0]?.text || '';
+                      contextStore.set(choirId, text.slice(0, 1500));
+                    } catch {
+                      contextStore.set(choirId, `[${choir.name} completed]`);
+                    }
+                    successfulRuns++;
+                    console.log(` ✓`);
+                  } else {
+                    console.log(` ✗`);
+                  }
+                }
+              } catch (err: any) {
+                console.log(` ✗ ${err.message?.slice(0, 50) || 'failed'}`);
+              }
+
+              // Brief pause between choirs (unless --fast)
+              if (!options?.fast && !options?.dryRun) {
+                await new Promise(r => setTimeout(r, 1000));
+              }
+            }
+
+            console.log("");
+
+            // Pause between days (unless --fast or last day)
+            if (day < days && !options?.fast && !options?.dryRun) {
+              console.log("  ⏳ Transitioning to next day...");
+              await new Promise(r => setTimeout(r, 2000));
+              console.log("");
+            }
+          }
+
+          const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+          console.log("═".repeat(55));
+          console.log("👁️  VISION COMPLETE");
+          console.log(`  Days simulated: ${days}`);
+          console.log(`  Choir runs: ${successfulRuns}/${totalRuns}`);
+          console.log(`  Duration: ${elapsed}s`);
           console.log("");
         });
 
