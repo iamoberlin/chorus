@@ -274,16 +274,17 @@ CRITICAL: If sending alerts via iMessage, use PLAIN TEXT ONLY (no markdown).
       }
 
       if (!result) {
-        // CLI fallback
+        // CLI fallback - use stdin to avoid arg length limits
         log.debug(`[purpose-research] Using CLI fallback for "${purpose.name}"`);
         result = spawnSync("openclaw", [
           "agent",
           "--session-id", `chorus:purpose:${purpose.id}`,
-          "--message", prompt,
           "--json",
         ], {
+          input: prompt,
           encoding: "utf-8",
           timeout: config.researchTimeoutMs,
+          maxBuffer: 1024 * 1024, // 1MB
         });
 
         if (result.status === 0 && result.stdout) {

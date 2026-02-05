@@ -38,7 +38,7 @@ import {
 import * as prayers from "./src/prayers/prayers.js";
 import * as prayerStore from "./src/prayers/store.js";
 
-const VERSION = "1.2.0"; // Added vision mode
+const VERSION = "1.2.1"; // Bug fixes: error handling, async safety
 
 const plugin = {
   id: "chorus",

@@ -5,6 +5,7 @@
 
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join } from 'path';
+import { homedir } from 'os';
 import type {
   PrayerRequest,
   PrayerResponse,
@@ -14,7 +15,8 @@ import type {
   PrayerStore
 } from './types';
 
-const DATA_DIR = process.env.PRAYER_DATA_DIR || join(process.cwd(), '.prayers');
+// Use ~/.chorus/prayers for consistent storage location
+const DATA_DIR = process.env.PRAYER_DATA_DIR || join(homedir(), '.chorus', 'prayers');
 const STORE_FILE = join(DATA_DIR, 'store.json');
 
 interface StorageFormat {
@@ -25,48 +27,71 @@ interface StorageFormat {
   peers: [string, AgentIdentity][];
 }
 
-function ensureDir() {
-  if (!existsSync(DATA_DIR)) {
-    mkdirSync(DATA_DIR, { recursive: true });
+function ensureDir(): boolean {
+  try {
+    if (!existsSync(DATA_DIR)) {
+      mkdirSync(DATA_DIR, { recursive: true });
+    }
+    return true;
+  } catch {
+    return false;
   }
+}
+
+function emptyStore(): PrayerStore {
+  return {
+    requests: new Map(),
+    responses: new Map(),
+    confirmations: new Map(),
+    reputation: new Map(),
+    peers: new Map()
+  };
 }
 
 function load(): PrayerStore {
-  ensureDir();
-  
-  if (!existsSync(STORE_FILE)) {
-    return {
-      requests: new Map(),
-      responses: new Map(),
-      confirmations: new Map(),
-      reputation: new Map(),
-      peers: new Map()
-    };
+  if (!ensureDir()) {
+    return emptyStore();
   }
   
-  const data: StorageFormat = JSON.parse(readFileSync(STORE_FILE, 'utf-8'));
+  if (!existsSync(STORE_FILE)) {
+    return emptyStore();
+  }
   
-  return {
-    requests: new Map(data.requests || []),
-    responses: new Map(data.responses || []),
-    confirmations: new Map(data.confirmations || []),
-    reputation: new Map(data.reputation || []),
-    peers: new Map(data.peers || [])
-  };
+  try {
+    const data: StorageFormat = JSON.parse(readFileSync(STORE_FILE, 'utf-8'));
+    
+    return {
+      requests: new Map(data.requests || []),
+      responses: new Map(data.responses || []),
+      confirmations: new Map(data.confirmations || []),
+      reputation: new Map(data.reputation || []),
+      peers: new Map(data.peers || [])
+    };
+  } catch {
+    // Corrupted store file - return empty store
+    return emptyStore();
+  }
 }
 
-function save(store: PrayerStore) {
-  ensureDir();
+function save(store: PrayerStore): boolean {
+  if (!ensureDir()) {
+    return false;
+  }
   
-  const data: StorageFormat = {
-    requests: Array.from(store.requests.entries()),
-    responses: Array.from(store.responses.entries()),
-    confirmations: Array.from(store.confirmations.entries()),
-    reputation: Array.from(store.reputation.entries()),
-    peers: Array.from(store.peers.entries())
-  };
-  
-  writeFileSync(STORE_FILE, JSON.stringify(data, null, 2));
+  try {
+    const data: StorageFormat = {
+      requests: Array.from(store.requests.entries()),
+      responses: Array.from(store.responses.entries()),
+      confirmations: Array.from(store.confirmations.entries()),
+      reputation: Array.from(store.reputation.entries()),
+      peers: Array.from(store.peers.entries())
+    };
+    
+    writeFileSync(STORE_FILE, JSON.stringify(data, null, 2));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 // Singleton store

@@ -34,11 +34,16 @@ export interface Purpose {
   research?: PurposeResearchConfig;
 }
 
-async function ensurePurposesFile(): Promise<void> {
-  const path = getPurposesPath();
-  if (!existsSync(path)) {
-    await mkdir(dirname(path), { recursive: true });
-    await writeFile(path, "[]");
+async function ensurePurposesFile(): Promise<boolean> {
+  try {
+    const path = getPurposesPath();
+    if (!existsSync(path)) {
+      await mkdir(dirname(path), { recursive: true });
+      await writeFile(path, "[]");
+    }
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -53,8 +58,12 @@ export async function loadPurposes(): Promise<Purpose[]> {
 }
 
 export async function savePurposes(purposes: Purpose[]): Promise<void> {
-  await ensurePurposesFile();
-  await writeFile(getPurposesPath(), JSON.stringify(purposes, null, 2));
+  try {
+    await ensurePurposesFile();
+    await writeFile(getPurposesPath(), JSON.stringify(purposes, null, 2));
+  } catch {
+    // Silently fail - caller should handle missing saves
+  }
 }
 
 export async function addPurpose(purpose: Partial<Purpose> & { id: string; name: string }): Promise<Purpose> {

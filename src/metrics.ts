@@ -56,21 +56,18 @@ const METRICS_DIR = join(homedir(), ".chorus");
 const METRICS_FILE = join(METRICS_DIR, "metrics.json");
 const COST_PER_1K_TOKENS = 0.003; // Approximate for Claude Sonnet
 
-function ensureMetricsDir(): void {
-  if (!existsSync(METRICS_DIR)) {
-    mkdirSync(METRICS_DIR, { recursive: true });
+function ensureMetricsDir(): boolean {
+  try {
+    if (!existsSync(METRICS_DIR)) {
+      mkdirSync(METRICS_DIR, { recursive: true });
+    }
+    return true;
+  } catch {
+    return false;
   }
 }
 
-function loadMetrics(): MetricsStore {
-  ensureMetricsDir();
-  if (existsSync(METRICS_FILE)) {
-    try {
-      return JSON.parse(readFileSync(METRICS_FILE, "utf-8"));
-    } catch {
-      // Corrupted file, start fresh
-    }
-  }
+function defaultMetricsStore(): MetricsStore {
   return {
     version: 1,
     days: {},
@@ -84,9 +81,29 @@ function loadMetrics(): MetricsStore {
   };
 }
 
+function loadMetrics(): MetricsStore {
+  if (!ensureMetricsDir()) {
+    return defaultMetricsStore();
+  }
+  if (existsSync(METRICS_FILE)) {
+    try {
+      return JSON.parse(readFileSync(METRICS_FILE, "utf-8"));
+    } catch {
+      // Corrupted file, start fresh
+    }
+  }
+  return defaultMetricsStore();
+}
+
 function saveMetrics(store: MetricsStore): void {
-  ensureMetricsDir();
-  writeFileSync(METRICS_FILE, JSON.stringify(store, null, 2));
+  if (!ensureMetricsDir()) {
+    return; // Silently fail - metrics are not critical
+  }
+  try {
+    writeFileSync(METRICS_FILE, JSON.stringify(store, null, 2));
+  } catch {
+    // Silently fail - metrics are not critical
+  }
 }
 
 function getDateKey(date: Date = new Date()): string {
