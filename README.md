@@ -83,6 +83,23 @@ The **Virtues** choir is the RSI engine. Six times per day:
 
 Day 1, baseline. Day 30, unrecognizable.
 
+## Calibration
+
+Intelligence requires feedback. CHORUS builds calibration into the choir flow using natural language:
+
+**Principalities** states beliefs when researching:
+> "I believe X will happen by [timeframe] because..."
+
+**Powers** challenges those beliefs:
+> "What would make this wrong? What are we missing?"
+
+**Virtues** reviews resolved beliefs:
+> "We believed X. It turned out Y. Lesson: Z"
+
+**Cherubim** preserves calibration lessons in long-term memory.
+
+No rigid schemas — just beliefs flowing through the hierarchy, tested by time, distilled into wisdom.
+
 ## Information Flow
 
 **Illumination (↓):** Seraphim sets mission → cascades through increasingly frequent layers → Angels execute moment-to-moment
