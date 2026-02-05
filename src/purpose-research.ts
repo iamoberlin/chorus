@@ -12,6 +12,10 @@ import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
 
+// Workspace path for research output
+const WORKSPACE_PATH = process.env.OPENCLAW_WORKSPACE || join(homedir(), ".openclaw", "workspace");
+const RESEARCH_DIR = join(WORKSPACE_PATH, "research");
+
 export interface PurposeResearchConfig {
   enabled: boolean;
   dailyRunCap: number;
@@ -192,7 +196,7 @@ Output format:
 - QUESTIONS: New questions raised
 - RABBIT_HOLES: Topics worth deeper exploration
 
-Write findings to: research/purpose-${purpose.id}-$(date +%Y-%m-%d-%H%M).md
+Your output will be saved automatically. Focus on the research content.
 `.trim();
     }
 
@@ -229,7 +233,7 @@ Output format:
 - ALERTS: Anything requiring immediate attention (or "none")
 - NEXT: What to research next time
 
-Write findings to: research/purpose-${purpose.id}-$(date +%Y-%m-%d-%H%M).md
+Your output will be saved automatically. Focus on the research content.
 
 CRITICAL: If sending alerts via iMessage, use PLAIN TEXT ONLY (no markdown).
 `.trim();
@@ -269,6 +273,23 @@ CRITICAL: If sending alerts via iMessage, use PLAIN TEXT ONLY (no markdown).
         `[purpose-research] ✓ "${purpose.name}" complete ` +
           `(${(execution.durationMs / 1000).toFixed(1)}s, ${execution.findings} findings)`
       );
+
+      // Write research output to file
+      if (output && output.length > 50) {
+        try {
+          if (!existsSync(RESEARCH_DIR)) {
+            mkdirSync(RESEARCH_DIR, { recursive: true });
+          }
+          const timestamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 16);
+          const filename = `purpose-${purpose.id}-${timestamp}.md`;
+          const filepath = join(RESEARCH_DIR, filename);
+          const header = `# Research: ${purpose.name}\n\n**Date:** ${new Date().toISOString()}\n**Purpose:** ${purpose.id}\n\n---\n\n`;
+          writeFileSync(filepath, header + output);
+          log.info(`[purpose-research] 📝 Wrote ${filename}`);
+        } catch (writeErr) {
+          log.error(`[purpose-research] Failed to write research file: ${writeErr}`);
+        }
+      }
 
       await updatePurpose(purpose.id, {
         research: {
