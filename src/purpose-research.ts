@@ -11,6 +11,7 @@ import { recordExecution, type ChoirExecution } from "./metrics.js";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
+import { spawnSync } from "child_process";
 
 // Workspace path for research output
 const WORKSPACE_PATH = process.env.OPENCLAW_WORKSPACE || join(homedir(), ".openclaw", "workspace");
@@ -253,15 +254,41 @@ CRITICAL: If sending alerts via iMessage, use PLAIN TEXT ONLY (no markdown).
 
     try {
       const prompt = generatePrompt(purpose);
+      let output = "";
 
-      const result = await api.runAgentTurn?.({
-        sessionLabel: `chorus:purpose:${purpose.id}`,
-        message: prompt,
-        isolated: true,
-        timeoutSeconds: config.researchTimeoutMs / 1000,
-      });
+      // Try plugin API first, fall back to CLI
+      if (typeof api.runAgentTurn === "function") {
+        const result = await api.runAgentTurn({
+          sessionLabel: `chorus:purpose:${purpose.id}`,
+          message: prompt,
+          isolated: true,
+          timeoutSeconds: config.researchTimeoutMs / 1000,
+        });
+        output = result?.response || "";
+      } else {
+        // CLI fallback
+        log.debug(`[purpose-research] Using CLI fallback for "${purpose.name}"`);
+        const result = spawnSync("openclaw", [
+          "agent",
+          "--session-id", `chorus:purpose:${purpose.id}`,
+          "--message", prompt,
+          "--json",
+        ], {
+          encoding: "utf-8",
+          timeout: config.researchTimeoutMs,
+        });
 
-      const output = result?.response || "";
+        if (result.status === 0 && result.stdout) {
+          try {
+            const json = JSON.parse(result.stdout);
+            output = json.result?.payloads?.[0]?.text || json.response || "";
+          } catch {
+            output = result.stdout;
+          }
+        } else if (result.stderr) {
+          log.error(`[purpose-research] CLI error: ${result.stderr}`);
+        }
+      }
       execution.durationMs = Date.now() - startTime;
       execution.success = true;
       execution.outputLength = output.length;
