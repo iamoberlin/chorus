@@ -38,7 +38,7 @@ import {
 import * as prayers from "./src/prayers/prayers.js";
 import * as prayerStore from "./src/prayers/store.js";
 
-const VERSION = "1.2.5"; // Vision now correctly passes choir prompts via stdin
+const VERSION = "1.2.6"; // Fixed: use --message flag instead of nonexistent stdin support
 
 const plugin = {
   id: "chorus",
@@ -213,14 +213,14 @@ const plugin = {
                 console.error(`  ✗ ${choir.name} failed:`, err);
               }
             } else {
-              // CLI context: use openclaw agent via stdin to avoid arg length limits
+              // CLI context: use openclaw agent with --message flag
               try {
                 const result = spawnSync('openclaw', [
                   'agent',
                   '--session-id', `chorus:${id}`,
+                  '--message', choir.prompt,
                   '--json',
                 ], {
-                  input: choir.prompt,
                   encoding: 'utf-8',
                   timeout: 300000, // 5 min
                   maxBuffer: 1024 * 1024, // 1MB
@@ -348,13 +348,12 @@ const plugin = {
 
                 try {
                   // Run the REAL choir with full tool access via direct agent call
-                  // Pass the choir prompt via stdin to avoid arg length limits
                   const result = spawnSync('openclaw', [
                     'agent',
                     '--session-id', `chorus:vision:${choirId}:d${day}`,
+                    '--message', choir.prompt,
                     '--json',
                   ], {
-                    input: choir.prompt, // Pass the full choir prompt via stdin
                     encoding: 'utf-8',
                     timeout: 300000, // 5 min timeout per choir (real work takes longer)
                     maxBuffer: 10 * 1024 * 1024, // 10MB buffer for full output
