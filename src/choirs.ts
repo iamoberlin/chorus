@@ -30,7 +30,7 @@ export const CHOIRS: Record<string, Choir> = {
   seraphim: {
     id: "seraphim",
     name: "Seraphim",
-    emoji: "🔥",
+    emoji: "",
     triad: "contemplation",
     frequencyPerDay: 1, // 1×/day
     intervalMinutes: 1440, // Once per day
@@ -59,7 +59,7 @@ Pass illumination to Cherubim.`,
   cherubim: {
     id: "cherubim",
     name: "Cherubim",
-    emoji: "📚",
+    emoji: "",
     triad: "contemplation",
     frequencyPerDay: 2, // 2×/day
     intervalMinutes: 720, // Every 12 hours
@@ -96,7 +96,7 @@ Pass illumination to Thrones.`,
   thrones: {
     id: "thrones",
     name: "Thrones",
-    emoji: "⚖️",
+    emoji: "",
     triad: "contemplation",
     frequencyPerDay: 3, // 3×/day
     intervalMinutes: 480, // Every 8 hours
@@ -131,7 +131,7 @@ Pass illumination to Dominions.`,
   dominions: {
     id: "dominions",
     name: "Dominions",
-    emoji: "👑",
+    emoji: "",
     triad: "governance",
     frequencyPerDay: 4, // 4×/day
     intervalMinutes: 360, // Every 6 hours
@@ -161,47 +161,72 @@ Pass illumination to Virtues.`,
   virtues: {
     id: "virtues",
     name: "Virtues",
-    emoji: "🔧",
+    emoji: "",
     triad: "governance",
     frequencyPerDay: 6, // 6×/day — THE RSI ENGINE
     intervalMinutes: 240, // Every 4 hours
     function: "Recursive self-improvement (RSI)",
-    output: "CHANGELOG.md, config modifications",
-    prompt: `You are VIRTUES — the Builder.
+    output: "CHANGELOG.md, config modifications, state updates",
+    prompt: `You are VIRTUES — the Builder. THIS IS THE RSI ENGINE.
 
-Your role: Improve capabilities and create new things. THIS IS THE RSI ENGINE.
+Your role: Ensure purposes are being fulfilled. When they're not, FIX THE SYSTEM.
 
-Tasks:
-1. Review what worked well recently — why?
-2. Review what failed or was inefficient — why?
-3. Identify ONE concrete improvement to make
-4. If low-risk: implement directly
-5. If higher-risk: write to proposals/ for review
+## Core Loop
 
-Calibration — learn from past beliefs:
-- Look in OPPORTUNITIES.md for closed positions and resolved trades
-- Check research/*.md and memory/*.md for past beliefs that have been tested by time
-- Ask: What did we believe? What actually happened? What does this teach us?
-- When you find a belief that turned out right or wrong, note the lesson in MEMORY.md
-- Example: "We believed X. It turned out Y. Lesson: Z"
+1. Check purposes in ~/.chorus/purposes.json
+2. For each purpose, ask: Is this actually producing results?
+3. If NO: Update local state to fix it. DO NOT just observe — ACT.
+4. If YES: Note what's working.
+
+## When a Purpose Isn't Producing Results
+
+DO NOT just write "trading isn't happening" and move on.
+DO update local state files to make it happen:
+
+- Update ~/.chorus/purposes.json (increase frequency, change criteria)
+- Update workspace files (trading/OPPORTUNITIES.md, HEARTBEAT.md)
+- Modify behavioral configs to enforce execution
+- The next cycle should run DIFFERENTLY because of your changes
+
+Example: If Trading purpose has 0 opportunities logged:
+1. Read ~/.chorus/purposes.json
+2. Increase researchFrequency for Trading purpose
+3. Update trading/RESEARCH-SESSION.md with stricter output requirements
+4. Add to HEARTBEAT.md: "Trading gate: Block other work until 1 opportunity logged"
+5. Log the change to CHANGELOG.md
+
+## Calibration — Learn From Beliefs
+
+- Check OPPORTUNITIES.md for resolved positions
+- Ask: What did we believe? What happened? What does this teach us?
+- Update MEMORY.md with calibration lessons
+
+## What You Can Modify (Local State)
+
+- ~/.chorus/purposes.json — purpose configs
+- ~/.chorus/run-state.json — execution state
+- Workspace files (trading/, research/, memory/, *.md)
+- HEARTBEAT.md, PLAN.md, PROJECTS.md
+
+## What You Cannot Modify
+
+- CHORUS plugin source code
+- OpenClaw system config
+- Anything requiring npm publish
 
 Context from Dominions: {dominions_context}
 
-CRITICAL: You can modify your own configuration, scripts, prompts, and processes.
-This is recursive self-improvement. The system literally improves itself.
-
 Risk levels:
-- LOW: Config tweaks, documentation, minor prompt adjustments → auto-apply
-- MEDIUM: New automations, workflow changes → apply and flag
-- HIGH: System architecture, security changes → proposals/ only
+- LOW: State file updates, config tweaks → auto-apply
+- MEDIUM: Behavioral changes, new workflows → apply and flag
+- HIGH: Anything uncertain → proposals/ only
 
-Output: What was improved. What was learned. Any calibration lessons from resolved beliefs.
+Output: 
+1. Purpose fulfillment status (which purposes are producing, which aren't)
+2. Changes made to local state to fix gaps
+3. Calibration lessons learned
 
-Append to CHANGELOG.md:
-- Timestamp
-- Change description
-- Risk level
-- Rationale
+Append to CHANGELOG.md with timestamp, change, risk level, rationale.
 
 Pass illumination to Powers.`,
     passesTo: ["powers"],
@@ -211,7 +236,7 @@ Pass illumination to Powers.`,
   powers: {
     id: "powers",
     name: "Powers",
-    emoji: "🛡️",
+    emoji: "",
     triad: "governance",
     frequencyPerDay: 8, // 8×/day
     intervalMinutes: 180, // Every 3 hours
@@ -262,7 +287,7 @@ If thesis is seriously threatened or security issue found: ALERT immediately.`,
   principalities: {
     id: "principalities",
     name: "Principalities",
-    emoji: "🔭",
+    emoji: "",
     triad: "action",
     frequencyPerDay: 12, // 12×/day
     intervalMinutes: 120, // Every 2 hours
@@ -304,7 +329,7 @@ Pass illumination to Archangels.`,
   archangels: {
     id: "archangels",
     name: "Archangels",
-    emoji: "📢",
+    emoji: "",
     triad: "action",
     frequencyPerDay: 18, // 18×/day
     intervalMinutes: 80, // Every ~80 minutes
@@ -340,7 +365,7 @@ Output: Briefing or alert message to deliver.`,
   angels: {
     id: "angels",
     name: "Angels",
-    emoji: "💫",
+    emoji: "",
     triad: "action",
     frequencyPerDay: 48, // 48×/day — continuous presence
     intervalMinutes: 30, // Every 30 minutes

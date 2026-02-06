@@ -38,7 +38,7 @@ import {
 import * as prayers from "./src/prayers/prayers.js";
 import * as prayerStore from "./src/prayers/store.js";
 
-const VERSION = "1.3.3"; // Restore --message flag (required by openclaw agent CLI)
+const VERSION = "1.3.4"; // Restore --message flag (required by openclaw agent CLI)
 
 const plugin = {
   id: "chorus",
