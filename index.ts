@@ -38,7 +38,7 @@ import {
 import * as prayers from "./src/prayers/prayers.js";
 import * as prayerStore from "./src/prayers/store.js";
 
-const VERSION = "1.2.2"; // Fix vision command CLI args
+const VERSION = "1.2.3"; // Vision now outputs collected insights + RSI summary
 
 const plugin = {
   id: "chorus",
@@ -334,11 +334,11 @@ const plugin = {
                     try {
                       const json = JSON.parse(result.stdout);
                       const text = json.result?.payloads?.[0]?.text || '';
-                      contextStore.set(choirId, text.slice(0, 500));
+                      contextStore.set(`${choirId}:d${day}`, text.slice(0, 500));
                       successfulRuns++;
                       console.log(` ✓`);
                     } catch {
-                      contextStore.set(choirId, `[${choir.name} completed]`);
+                      contextStore.set(`${choirId}:d${day}`, `[${choir.name} completed]`);
                       successfulRuns++;
                       console.log(` ✓`);
                     }
@@ -364,6 +364,65 @@ const plugin = {
           console.log(`  Choir runs: ${successfulRuns}/${totalRuns}`);
           console.log(`  Duration: ${elapsed}s`);
           console.log("");
+
+          // Output collected insights
+          if (contextStore.size > 0 && !options?.dryRun) {
+            console.log("📜 COLLECTED INSIGHTS");
+            console.log("═".repeat(55));
+            
+            // Group by choir across days
+            const choirInsights: Map<string, string[]> = new Map();
+            for (const [key, value] of contextStore) {
+              const [choirId] = key.split(':');
+              if (!choirInsights.has(choirId)) {
+                choirInsights.set(choirId, []);
+              }
+              choirInsights.get(choirId)!.push(value);
+            }
+
+            // Output key choirs with full text
+            const keyChoirs = ['virtues', 'powers', 'seraphim'];
+            for (const choirId of keyChoirs) {
+              const choir = CHOIRS[choirId];
+              if (!choir) continue;
+              
+              const insights = [];
+              for (const [key, value] of contextStore) {
+                if (key.startsWith(choirId) || key.includes(`:${choirId}:`)) {
+                  insights.push(value);
+                }
+              }
+              
+              if (insights.length > 0) {
+                console.log("");
+                console.log(`${choir.emoji} ${choir.name.toUpperCase()}`);
+                console.log("─".repeat(40));
+                insights.forEach((insight, i) => {
+                  if (days > 1) console.log(`Day ${i + 1}:`);
+                  console.log(insight);
+                  console.log("");
+                });
+              }
+            }
+
+            // RSI Summary (from Virtues)
+            const virtuesInsights = [];
+            for (const [key, value] of contextStore) {
+              if (key.includes('virtues')) {
+                virtuesInsights.push(value);
+              }
+            }
+            
+            if (virtuesInsights.length > 0) {
+              console.log("");
+              console.log("🔄 RSI SUMMARY (Self-Improvement)");
+              console.log("═".repeat(55));
+              virtuesInsights.forEach((v, i) => {
+                console.log(`Day ${i + 1}: ${v.slice(0, 200)}${v.length > 200 ? '...' : ''}`);
+              });
+              console.log("");
+            }
+          }
         });
 
       // Metrics command
