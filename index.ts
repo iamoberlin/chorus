@@ -38,7 +38,7 @@ import {
 import * as prayers from "./src/prayers/prayers.js";
 import * as prayerStore from "./src/prayers/store.js";
 
-const VERSION = "1.2.4"; // Vision runs REAL choirs by default, --dry-run for narration
+const VERSION = "1.2.5"; // Vision now correctly passes choir prompts via stdin
 
 const plugin = {
   id: "chorus",
@@ -347,22 +347,33 @@ const plugin = {
                 process.stdout.write(`  ${choir.emoji} ${choir.name}...`);
 
                 try {
-                  // Run the REAL choir with full tool access
-                  // This performs actual web searches, file updates, state changes
+                  // Run the REAL choir with full tool access via direct agent call
+                  // Pass the choir prompt via stdin to avoid arg length limits
                   const result = spawnSync('openclaw', [
-                    'chorus', 'run', choirId,
+                    'agent',
+                    '--session-id', `chorus:vision:${choirId}:d${day}`,
+                    '--json',
                   ], {
+                    input: choir.prompt, // Pass the full choir prompt via stdin
                     encoding: 'utf-8',
                     timeout: 300000, // 5 min timeout per choir (real work takes longer)
                     maxBuffer: 10 * 1024 * 1024, // 10MB buffer for full output
                   });
 
                   if (result.status === 0) {
-                    // Capture the choir's output for summary
-                    const output = result.stdout || '';
-                    contextStore.set(`${choirId}:d${day}`, output.slice(-2000)); // Last 2KB
-                    successfulRuns++;
-                    console.log(` ✓`);
+                    // Parse the agent response
+                    try {
+                      const json = JSON.parse(result.stdout || '{}');
+                      const text = json.result?.payloads?.[0]?.text || '';
+                      const duration = json.result?.meta?.durationMs || 0;
+                      contextStore.set(`${choirId}:d${day}`, text.slice(0, 2000)); // Keep 2KB of response
+                      successfulRuns++;
+                      console.log(` ✓ (${(duration/1000).toFixed(1)}s)`);
+                    } catch {
+                      contextStore.set(`${choirId}:d${day}`, result.stdout?.slice(-2000) || `[${choir.name} completed]`);
+                      successfulRuns++;
+                      console.log(` ✓`);
+                    }
                   } else {
                     const errMsg = (result.stderr || result.error?.message || 'unknown error').slice(0, 100);
                     console.log(` ✗ (${errMsg})`);
