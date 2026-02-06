@@ -38,7 +38,7 @@ import {
 import * as prayers from "./src/prayers/prayers.js";
 import * as prayerStore from "./src/prayers/store.js";
 
-const VERSION = "1.2.6"; // Fixed: use --message flag instead of nonexistent stdin support
+const VERSION = "1.2.7"; // Fixed JSON parsing: extract JSON from output (plugin logs prefix it)
 
 const plugin = {
   id: "chorus",
@@ -208,7 +208,13 @@ const plugin = {
                   isolated: true,
                   timeoutSeconds: 300,
                 });
-                console.log(`  ✓ ${choir.name} complete`);
+                const text = result?.text || result?.payloads?.[0]?.text || '';
+                const duration = result?.meta?.durationMs || 0;
+                console.log(`  ✓ ${choir.name} complete (${(duration/1000).toFixed(1)}s)`);
+                if (text) {
+                  const preview = text.slice(0, 150).replace(/\n/g, ' ');
+                  console.log(`    ${preview}${text.length > 150 ? '...' : ''}`);
+                }
               } catch (err) {
                 console.error(`  ✗ ${choir.name} failed:`, err);
               }
@@ -228,7 +234,11 @@ const plugin = {
                 
                 if (result.status === 0) {
                   try {
-                    const json = JSON.parse(result.stdout || '{}');
+                    // Extract JSON from output (may have plugin logs before it)
+                    const stdout = result.stdout || '';
+                    const jsonStart = stdout.indexOf('{');
+                    const jsonStr = jsonStart >= 0 ? stdout.slice(jsonStart) : '{}';
+                    const json = JSON.parse(jsonStr);
                     const text = json.result?.payloads?.[0]?.text || '';
                     const duration = json.result?.meta?.durationMs || 0;
                     console.log(`  ✓ ${choir.name} complete (${(duration/1000).toFixed(1)}s)`);
@@ -236,8 +246,8 @@ const plugin = {
                       const preview = text.slice(0, 150).replace(/\n/g, ' ');
                       console.log(`    ${preview}${text.length > 150 ? '...' : ''}`);
                     }
-                  } catch {
-                    console.log(`  ✓ ${choir.name} complete`);
+                  } catch (parseErr) {
+                    console.log(`  ✓ ${choir.name} complete (parse error: ${parseErr})`);
                   }
                 } else {
                   const errMsg = result.stderr || result.stdout || 'Unknown error';
@@ -327,7 +337,10 @@ const plugin = {
                     });
                     if (result.status === 0 && result.stdout) {
                       try {
-                        const json = JSON.parse(result.stdout);
+                        const stdout = result.stdout;
+                        const jsonStart = stdout.indexOf('{');
+                        const jsonStr = jsonStart >= 0 ? stdout.slice(jsonStart) : '{}';
+                        const json = JSON.parse(jsonStr);
                         const text = json.result?.payloads?.[0]?.text || '';
                         contextStore.set(`${choirId}:d${day}`, text.slice(0, 500));
                         console.log(` ✓ (dry)`);
@@ -360,9 +373,12 @@ const plugin = {
                   });
 
                   if (result.status === 0) {
-                    // Parse the agent response
+                    // Parse the agent response (extract JSON from output)
                     try {
-                      const json = JSON.parse(result.stdout || '{}');
+                      const stdout = result.stdout || '';
+                      const jsonStart = stdout.indexOf('{');
+                      const jsonStr = jsonStart >= 0 ? stdout.slice(jsonStart) : '{}';
+                      const json = JSON.parse(jsonStr);
                       const text = json.result?.payloads?.[0]?.text || '';
                       const duration = json.result?.meta?.durationMs || 0;
                       contextStore.set(`${choirId}:d${day}`, text.slice(0, 2000)); // Keep 2KB of response
