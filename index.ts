@@ -37,8 +37,14 @@ import {
 } from "./src/purpose-research.js";
 import * as prayers from "./src/prayers/prayers.js";
 import * as prayerStore from "./src/prayers/store.js";
+import { readFileSync } from "fs";
+import { fileURLToPath } from "url";
+import { dirname, join } from "path";
 
-const VERSION = "1.3.4"; // Restore --message flag (required by openclaw agent CLI)
+// Read version from package.json to prevent drift
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const pkg = JSON.parse(readFileSync(join(__dirname, "package.json"), "utf-8"));
+const VERSION = pkg.version;
 
 const plugin = {
   id: "chorus",
