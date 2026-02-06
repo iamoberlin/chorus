@@ -9,6 +9,10 @@ import type { OpenClawPluginService, PluginLogger } from "openclaw/plugin-sdk";
 import type { ChorusConfig } from "./config.js";
 import { CHOIRS, shouldRunChoir, CASCADE_ORDER, type Choir } from "./choirs.js";
 import { recordExecution, type ChoirExecution } from "./metrics.js";
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "fs";
+import { join } from "path";
+import { homedir } from "os";
+import { spawn } from "child_process";
 
 interface ChoirContext {
   choirId: string;
@@ -22,6 +26,64 @@ interface ChoirRunState {
   runCount: number;
 }
 
+// State persistence path
+const CHORUS_DIR = join(homedir(), ".chorus");
+const RUN_STATE_PATH = join(CHORUS_DIR, "run-state.json");
+
+// Load persisted run state from disk
+function loadRunState(log: PluginLogger): Map<string, ChoirRunState> {
+  const state = new Map<string, ChoirRunState>();
+  
+  // Initialize all choirs with default state
+  for (const choirId of Object.keys(CHOIRS)) {
+    state.set(choirId, { runCount: 0 });
+  }
+  
+  // Try to load persisted state
+  if (existsSync(RUN_STATE_PATH)) {
+    try {
+      const data = JSON.parse(readFileSync(RUN_STATE_PATH, "utf-8"));
+      for (const [choirId, saved] of Object.entries(data)) {
+        const s = saved as any;
+        if (state.has(choirId)) {
+          state.set(choirId, {
+            lastRun: s.lastRun ? new Date(s.lastRun) : undefined,
+            lastOutput: s.lastOutput,
+            runCount: s.runCount || 0,
+          });
+        }
+      }
+      log.info(`[chorus] Loaded run state from disk (${Object.keys(data).length} choirs)`);
+    } catch (err) {
+      log.warn(`[chorus] Failed to load run state: ${err}`);
+    }
+  }
+  
+  return state;
+}
+
+// Save run state to disk
+function saveRunState(state: Map<string, ChoirRunState>, log: PluginLogger): void {
+  try {
+    // Ensure directory exists
+    if (!existsSync(CHORUS_DIR)) {
+      mkdirSync(CHORUS_DIR, { recursive: true });
+    }
+    
+    const obj: Record<string, any> = {};
+    for (const [choirId, s] of state) {
+      obj[choirId] = {
+        lastRun: s.lastRun?.toISOString(),
+        lastOutput: s.lastOutput,
+        runCount: s.runCount,
+      };
+    }
+    writeFileSync(RUN_STATE_PATH, JSON.stringify(obj, null, 2));
+  } catch (err) {
+    log.error(`[chorus] Failed to save run state: ${err}`);
+  }
+}
+
 export function createChoirScheduler(
   config: ChorusConfig,
   log: PluginLogger,
@@ -29,12 +91,9 @@ export function createChoirScheduler(
 ): OpenClawPluginService {
   let checkInterval: NodeJS.Timeout | null = null;
   const contextStore: Map<string, ChoirContext> = new Map();
-  const runState: Map<string, ChoirRunState> = new Map();
-
-  // Initialize run state for all choirs
-  for (const choirId of Object.keys(CHOIRS)) {
-    runState.set(choirId, { runCount: 0 });
-  }
+  
+  // Load persisted state instead of starting fresh
+  const runState = loadRunState(log);
 
   // Build the prompt with context injected
   function buildPrompt(choir: Choir): string {
@@ -51,7 +110,7 @@ export function createChoirScheduler(
     return prompt;
   }
 
-  // Execute a choir
+  // Execute a choir using openclaw agent CLI
   async function executeChoir(choir: Choir): Promise<void> {
     const state = runState.get(choir.id) || { runCount: 0 };
     const startTime = Date.now();
@@ -69,19 +128,50 @@ export function createChoirScheduler(
     try {
       const prompt = buildPrompt(choir);
 
-      // Use OpenClaw's session system to run an agent turn
-      const result = await api.runAgentTurn?.({
-        sessionLabel: `chorus:${choir.id}`,
-        message: prompt,
-        isolated: true,
-        timeoutSeconds: 300, // 5 min max
+      // Use openclaw agent CLI (async to avoid blocking event loop)
+      const result = await new Promise<{ status: number | null; stdout: string; stderr: string }>((resolve) => {
+        const child = spawn('openclaw', [
+          'agent',
+          '--session-id', `chorus:${choir.id}`,
+          '--message', prompt,
+          '--json',
+        ], { stdio: ['pipe', 'pipe', 'pipe'] });
+
+        let stdout = '';
+        let stderr = '';
+        const maxBuffer = 1024 * 1024;
+        child.stdout.on('data', (d: Buffer) => { if (stdout.length < maxBuffer) stdout += d.toString(); });
+        child.stderr.on('data', (d: Buffer) => { if (stderr.length < maxBuffer) stderr += d.toString(); });
+
+        const timer = setTimeout(() => { child.kill('SIGTERM'); }, 300000); // 5 min
+        child.on('close', (code) => { clearTimeout(timer); resolve({ status: code, stdout, stderr }); });
+        child.on('error', (err) => { clearTimeout(timer); resolve({ status: 1, stdout: '', stderr: String(err) }); });
       });
 
-      const output = result?.response || "(no response)";
+      let output = "(no response)";
+
+      if (result.status === 0 && result.stdout) {
+        // Extract JSON from output (may have plugin logs before it)
+        const stdout = result.stdout;
+        const jsonStart = stdout.indexOf('{');
+        if (jsonStart >= 0) {
+          try {
+            const parsed = JSON.parse(stdout.slice(jsonStart));
+            output = parsed.response || parsed.content || stdout;
+          } catch {
+            output = stdout;
+          }
+        } else {
+          output = stdout;
+        }
+      } else if (result.stderr) {
+        log.warn(`[chorus] ${choir.name} stderr: ${result.stderr.slice(0, 200)}`);
+      }
+
       execution.durationMs = Date.now() - startTime;
-      execution.success = true;
+      execution.success = result.status === 0;
       execution.outputLength = output.length;
-      execution.tokensUsed = result?.meta?.tokensUsed || estimateTokens(output);
+      execution.tokensUsed = estimateTokens(output);
 
       // Parse output for metrics (findings, alerts, improvements)
       execution.findings = countFindings(output);
@@ -101,6 +191,9 @@ export function createChoirScheduler(
         lastOutput: output.slice(0, 500),
         runCount: state.runCount + 1,
       });
+      
+      // Persist state to disk after each run
+      saveRunState(runState, log);
 
       log.info(`[chorus] ${choir.emoji} ${choir.name} completed (${(execution.durationMs/1000).toFixed(1)}s)`);
 

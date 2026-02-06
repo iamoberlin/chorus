@@ -11,7 +11,7 @@ import { recordExecution, type ChoirExecution } from "./metrics.js";
 import { existsSync, readFileSync, writeFileSync, mkdirSync } from "fs";
 import { join } from "path";
 import { homedir } from "os";
-import { spawnSync } from "child_process";
+import { spawn } from "child_process";
 
 // Workspace path for research output
 const WORKSPACE_PATH = process.env.OPENCLAW_WORKSPACE || join(homedir(), ".openclaw", "workspace");
@@ -274,17 +274,28 @@ CRITICAL: If sending alerts via iMessage, use PLAIN TEXT ONLY (no markdown).
       }
 
       if (!result) {
-        // CLI fallback - use stdin to avoid arg length limits
+        // CLI fallback - use stdin to avoid arg length limits (async to avoid blocking event loop)
         log.debug(`[purpose-research] Using CLI fallback for "${purpose.name}"`);
-        result = spawnSync("openclaw", [
-          "agent",
-          "--session-id", `chorus:purpose:${purpose.id}`,
-          "--json",
-        ], {
-          input: prompt,
-          encoding: "utf-8",
-          timeout: config.researchTimeoutMs,
-          maxBuffer: 1024 * 1024, // 1MB
+        result = await new Promise<any>((resolve) => {
+          const child = spawn("openclaw", [
+            "agent",
+            "--session-id", `chorus:purpose:${purpose.id}`,
+            "--json",
+          ], { stdio: ['pipe', 'pipe', 'pipe'] });
+
+          let stdout = '';
+          let stderr = '';
+          const maxBuffer = 1024 * 1024;
+          child.stdout.on('data', (d: Buffer) => { if (stdout.length < maxBuffer) stdout += d.toString(); });
+          child.stderr.on('data', (d: Buffer) => { if (stderr.length < maxBuffer) stderr += d.toString(); });
+
+          // Write prompt to stdin
+          child.stdin.write(prompt);
+          child.stdin.end();
+
+          const timer = setTimeout(() => { child.kill('SIGTERM'); }, config.researchTimeoutMs);
+          child.on('close', (code) => { clearTimeout(timer); resolve({ status: code, stdout, stderr }); });
+          child.on('error', (err) => { clearTimeout(timer); resolve({ status: 1, stdout: '', stderr: String(err) }); });
         });
 
         if (result.status === 0 && result.stdout) {

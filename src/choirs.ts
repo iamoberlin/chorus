@@ -30,7 +30,7 @@ export const CHOIRS: Record<string, Choir> = {
   seraphim: {
     id: "seraphim",
     name: "Seraphim",
-    emoji: "",
+    emoji: "🔥",
     triad: "contemplation",
     frequencyPerDay: 1, // 1×/day
     intervalMinutes: 1440, // Once per day
@@ -59,7 +59,7 @@ Pass illumination to Cherubim.`,
   cherubim: {
     id: "cherubim",
     name: "Cherubim",
-    emoji: "",
+    emoji: "📚",
     triad: "contemplation",
     frequencyPerDay: 2, // 2×/day
     intervalMinutes: 720, // Every 12 hours
@@ -96,7 +96,7 @@ Pass illumination to Thrones.`,
   thrones: {
     id: "thrones",
     name: "Thrones",
-    emoji: "",
+    emoji: "⚖️",
     triad: "contemplation",
     frequencyPerDay: 3, // 3×/day
     intervalMinutes: 480, // Every 8 hours
@@ -131,7 +131,7 @@ Pass illumination to Dominions.`,
   dominions: {
     id: "dominions",
     name: "Dominions",
-    emoji: "",
+    emoji: "👑",
     triad: "governance",
     frequencyPerDay: 4, // 4×/day
     intervalMinutes: 360, // Every 6 hours
@@ -161,7 +161,7 @@ Pass illumination to Virtues.`,
   virtues: {
     id: "virtues",
     name: "Virtues",
-    emoji: "",
+    emoji: "🔧",
     triad: "governance",
     frequencyPerDay: 6, // 6×/day — THE RSI ENGINE
     intervalMinutes: 240, // Every 4 hours
@@ -211,7 +211,7 @@ Pass illumination to Powers.`,
   powers: {
     id: "powers",
     name: "Powers",
-    emoji: "",
+    emoji: "🛡️",
     triad: "governance",
     frequencyPerDay: 8, // 8×/day
     intervalMinutes: 180, // Every 3 hours
@@ -262,7 +262,7 @@ If thesis is seriously threatened or security issue found: ALERT immediately.`,
   principalities: {
     id: "principalities",
     name: "Principalities",
-    emoji: "",
+    emoji: "🔭",
     triad: "action",
     frequencyPerDay: 12, // 12×/day
     intervalMinutes: 120, // Every 2 hours
@@ -304,7 +304,7 @@ Pass illumination to Archangels.`,
   archangels: {
     id: "archangels",
     name: "Archangels",
-    emoji: "",
+    emoji: "📢",
     triad: "action",
     frequencyPerDay: 18, // 18×/day
     intervalMinutes: 80, // Every ~80 minutes
@@ -340,7 +340,7 @@ Output: Briefing or alert message to deliver.`,
   angels: {
     id: "angels",
     name: "Angels",
-    emoji: "",
+    emoji: "💫",
     triad: "action",
     frequencyPerDay: 48, // 48×/day — continuous presence
     intervalMinutes: 30, // Every 30 minutes
