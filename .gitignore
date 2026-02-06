@@ -2,3 +2,11 @@ node_modules/
 dist/
 *.log
 .DS_Store
+
+# Rust/Anchor build artifacts
+target/
+**/*.rs.bk
+.anchor
+
+# Package locks (using bun.lock)
+package-lock.json
