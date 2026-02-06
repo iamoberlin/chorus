@@ -20,9 +20,12 @@ export interface PurposeResearchConfig {
   runCount?: number;
 }
 
+export type PurposeKind = "research" | "operational" | "archival" | "review";
+
 export interface Purpose {
   id: string;
   name: string;
+  kind?: PurposeKind;          // Type of purpose (default: research)
   description?: string;
   deadline?: number | string;  // Unix ms or ISO string
   progress: number;            // 0-100
@@ -31,6 +34,8 @@ export interface Purpose {
   curiosity?: number;          // 0-100, for exploration purposes
   tags?: string[];
   notes?: string;
+  command?: string;            // Shell command for operational purposes
+  schedule?: string;           // Cron-like schedule hint (e.g., "daily", "weekly:saturday")
   research?: PurposeResearchConfig;
 }
 
