@@ -133,9 +133,12 @@ export function createChoirScheduler(
         const child = spawn('openclaw', [
           'agent',
           '--session-id', `chorus:${choir.id}`,
-          '--message', prompt,
           '--json',
         ], { stdio: ['pipe', 'pipe', 'pipe'] });
+
+        // Pass prompt via stdin (--message flag doesn't work)
+        child.stdin.write(prompt);
+        child.stdin.end();
 
         let stdout = '';
         let stderr = '';

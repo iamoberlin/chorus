@@ -38,7 +38,7 @@ import {
 import * as prayers from "./src/prayers/prayers.js";
 import * as prayerStore from "./src/prayers/store.js";
 
-const VERSION = "1.3.0"; // Async spawn: unblock gateway event loop during choir execution
+const VERSION = "1.3.1"; // Fix: pass prompt via stdin not --message flag
 
 const plugin = {
   id: "chorus",
@@ -219,14 +219,14 @@ const plugin = {
                 console.error(`  ✗ ${choir.name} failed:`, err);
               }
             } else {
-              // CLI context: use openclaw agent with stdin
+              // CLI context: use openclaw agent with --message flag
               try {
                 const result = spawnSync('openclaw', [
                   'agent',
                   '--session-id', `chorus:${id}`,
+                  '--message', choir.prompt,
                   '--json',
                 ], {
-                  input: choir.prompt,
                   encoding: 'utf-8',
                   timeout: 300000, // 5 min
                   maxBuffer: 1024 * 1024, // 1MB
@@ -328,9 +328,9 @@ const plugin = {
                     const result = spawnSync('openclaw', [
                       'agent',
                       '--session-id', `chorus:vision:dry:${choirId}:d${day}`,
+                      '--message', dryPrompt,
                       '--json',
                     ], {
-                      input: dryPrompt,
                       encoding: 'utf-8',
                       timeout: 60000,
                       maxBuffer: 1024 * 1024,
@@ -364,9 +364,9 @@ const plugin = {
                   const result = spawnSync('openclaw', [
                     'agent',
                     '--session-id', `chorus:vision:${choirId}:d${day}`,
+                    '--message', choir.prompt,
                     '--json',
                   ], {
-                    input: choir.prompt,
                     encoding: 'utf-8',
                     timeout: 300000, // 5 min timeout per choir (real work takes longer)
                     maxBuffer: 10 * 1024 * 1024, // 10MB buffer for full output
