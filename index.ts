@@ -38,7 +38,7 @@ import {
 import * as prayers from "./src/prayers/prayers.js";
 import * as prayerStore from "./src/prayers/store.js";
 
-const VERSION = "1.2.3"; // Vision now outputs collected insights + RSI summary
+const VERSION = "1.2.4"; // Vision runs REAL choirs by default, --dry-run for narration
 
 const plugin = {
   id: "chorus",
@@ -264,8 +264,8 @@ const plugin = {
       // NOTE: This is CLI-only, runs via spawned openclaw agent calls
       program
         .command("vision [days]")
-        .description("Simulate multiple days of choir cycles (prophetic vision)")
-        .option("--dry-run", "Show what would run without executing")
+        .description("Run multiple days of choir cycles with real state changes (prophetic vision)")
+        .option("--dry-run", "Narration mode: describe what would happen without executing")
         .action((daysArg?: string, options?: { dryRun?: boolean }) => {
           // Synchronous wrapper to avoid async issues in commander
           const days = parseInt(daysArg || "1", 10);
@@ -286,9 +286,13 @@ const plugin = {
           console.log("");
           console.log("👁️  VISION MODE");
           console.log("═".repeat(55));
-          console.log(`  Simulating ${days} day${days > 1 ? 's' : ''} of cognitive cycles`);
-          console.log(`  Total choir runs: ${days * 9}`);
-          console.log(`  Mode: ${options?.dryRun ? 'DRY RUN' : 'LIVE'}`);
+          console.log(`  Days: ${days}`);
+          console.log(`  Choir runs: ${days * 9}`);
+          if (options?.dryRun) {
+            console.log(`  Mode: DRY RUN (narration only, no state changes)`);
+          } else {
+            console.log(`  Mode: LIVE (real execution, real state changes)`);
+          }
           console.log("");
 
           const startTime = Date.now();
@@ -307,41 +311,58 @@ const plugin = {
                 totalRuns++;
 
                 if (options?.dryRun) {
-                  console.log(`  ${choir.emoji} ${choir.name} (would run)`);
-                  contextStore.set(choirId, `[Simulated ${choir.name} output for day ${day}]`);
+                  // Dry run: narration mode - describe what would happen without doing it
+                  process.stdout.write(`  ${choir.emoji} ${choir.name}...`);
+                  try {
+                    const dryPrompt = `You are ${choir.name} in VISION MODE (day ${day}/${days}). Role: ${choir.function}. Output: ${choir.output}. Briefly describe what you would do. Keep response under 300 words.`;
+                    const result = spawnSync('openclaw', [
+                      'agent',
+                      '--session-id', `chorus:vision:dry:${choirId}:d${day}`,
+                      '--message', dryPrompt,
+                      '--json',
+                    ], {
+                      encoding: 'utf-8',
+                      timeout: 60000,
+                      maxBuffer: 1024 * 1024,
+                    });
+                    if (result.status === 0 && result.stdout) {
+                      try {
+                        const json = JSON.parse(result.stdout);
+                        const text = json.result?.payloads?.[0]?.text || '';
+                        contextStore.set(`${choirId}:d${day}`, text.slice(0, 500));
+                        console.log(` ✓ (dry)`);
+                      } catch {
+                        contextStore.set(`${choirId}:d${day}`, `[${choir.name} would run]`);
+                        console.log(` ✓ (dry)`);
+                      }
+                    } else {
+                      console.log(` ✗ (dry)`);
+                    }
+                  } catch {
+                    console.log(` ✗ (dry)`);
+                  }
                   continue;
                 }
 
                 process.stdout.write(`  ${choir.emoji} ${choir.name}...`);
 
                 try {
-                  // Build a simplified prompt for vision mode (short enough for CLI args)
-                  const visionPrompt = `You are ${choir.name} in VISION MODE (day ${day}/${days}). Role: ${choir.function}. Output: ${choir.output}. Provide a brief summary of what you would do. Keep response under 300 words.`;
-
-                  // Vision prompts are short - safe to use --message
+                  // Run the REAL choir with full tool access
+                  // This performs actual web searches, file updates, state changes
                   const result = spawnSync('openclaw', [
-                    'agent',
-                    '--session-id', `chorus:vision:${choirId}:d${day}`,
-                    '--message', visionPrompt,
-                    '--json',
+                    'chorus', 'run', choirId,
                   ], {
                     encoding: 'utf-8',
-                    timeout: 120000, // 2 min timeout per choir
-                    maxBuffer: 1024 * 1024, // 1MB buffer
+                    timeout: 300000, // 5 min timeout per choir (real work takes longer)
+                    maxBuffer: 10 * 1024 * 1024, // 10MB buffer for full output
                   });
 
-                  if (result.status === 0 && result.stdout) {
-                    try {
-                      const json = JSON.parse(result.stdout);
-                      const text = json.result?.payloads?.[0]?.text || '';
-                      contextStore.set(`${choirId}:d${day}`, text.slice(0, 500));
-                      successfulRuns++;
-                      console.log(` ✓`);
-                    } catch {
-                      contextStore.set(`${choirId}:d${day}`, `[${choir.name} completed]`);
-                      successfulRuns++;
-                      console.log(` ✓`);
-                    }
+                  if (result.status === 0) {
+                    // Capture the choir's output for summary
+                    const output = result.stdout || '';
+                    contextStore.set(`${choirId}:d${day}`, output.slice(-2000)); // Last 2KB
+                    successfulRuns++;
+                    console.log(` ✓`);
                   } else {
                     const errMsg = (result.stderr || result.error?.message || 'unknown error').slice(0, 100);
                     console.log(` ✗ (${errMsg})`);
