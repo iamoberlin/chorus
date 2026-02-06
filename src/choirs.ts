@@ -413,12 +413,19 @@ export function getChoir(id: string): Choir | undefined {
   return CHOIRS[id];
 }
 
+// Global minimum interval to prevent over-triggering during rapid restarts or testing
+// Even if a choir's config says 0 or very short, enforce at least this many minutes
+const MIN_INTERVAL_MINUTES = 30;
+
 // Check if a choir should run based on its interval
 export function shouldRunChoir(choir: Choir, now: Date, lastRun?: Date): boolean {
   if (!lastRun) return true;
 
   const minutesSinceLastRun = (now.getTime() - lastRun.getTime()) / 1000 / 60;
-  return minutesSinceLastRun >= choir.intervalMinutes;
+  
+  // Enforce both the choir's configured interval AND the global minimum
+  const effectiveInterval = Math.max(choir.intervalMinutes, MIN_INTERVAL_MINUTES);
+  return minutesSinceLastRun >= effectiveInterval;
 }
 
 // Get human-readable frequency
