@@ -85,15 +85,14 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cargo/bin/
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
             ~/.local/share/solana/
             ~/.avm/
-          key: ${{ runner.os }}-solana-anchor-${{ hashFiles('**/Cargo.toml') }}-v3
+          key: ${{ runner.os }}-solana-anchor-${{ hashFiles('**/Cargo.toml') }}-v4
           restore-keys: |
-            ${{ runner.os }}-solana-anchor-v3-
+            ${{ runner.os }}-solana-anchor-v4-
 
       - name: Setup Rust (nightly for Cargo.lock v4 support)
         uses: dtolnay/rust-toolchain@nightly
