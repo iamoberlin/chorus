@@ -10,8 +10,8 @@
     {
       "name": "answer_prayer",
       "docs": [
-        "Answer a claimed prayer",
-        "Answer string is emitted as an event but NOT stored in the account."
+        "Answer a claimed prayer with encrypted answer.",
+        "The encrypted_answer is a DH-encrypted blob that only the requester can decrypt."
       ],
       "discriminator": [
         80,
@@ -102,10 +102,6 @@
       ],
       "args": [
         {
-          "name": "answer",
-          "type": "string"
-        },
-        {
           "name": "answer_hash",
           "type": {
             "array": [
@@ -113,6 +109,10 @@
               32
             ]
           }
+        },
+        {
+          "name": "encrypted_answer",
+          "type": "bytes"
         }
       ]
     },
@@ -365,6 +365,63 @@
       "args": []
     },
     {
+      "name": "deliver_content",
+      "docs": [
+        "Deliver encrypted prayer content to the claimer.",
+        "Only the requester can call this, and only when the prayer is Claimed.",
+        "The encrypted_content is a DH-encrypted blob that only the claimer can decrypt",
+        "using their private key and the requester's on-chain encryption_key."
+      ],
+      "discriminator": [
+        189,
+        164,
+        130,
+        126,
+        12,
+        241,
+        191,
+        45
+      ],
+      "accounts": [
+        {
+          "name": "prayer",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "prayer.id",
+                "account": "Prayer"
+              }
+            ]
+          }
+        },
+        {
+          "name": "requester",
+          "signer": true,
+          "relations": [
+            "prayer"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "encrypted_content",
+          "type": "bytes"
+        }
+      ]
+    },
+    {
       "name": "initialize",
       "docs": [
         "Initialize the PrayerChain singleton"
@@ -420,8 +477,9 @@
     {
       "name": "post_prayer",
       "docs": [
-        "Post a new prayer (request for help)",
-        "Content string is emitted as an event for off-chain indexing but NOT stored in the account."
+        "Post a new prayer (request for help).",
+        "Content is NEVER posted on-chain — only the SHA-256 hash.",
+        "After a claimer claims, the asker delivers encrypted content via deliver_content."
       ],
       "discriminator": [
         247,
@@ -525,10 +583,6 @@
           }
         },
         {
-          "name": "content",
-          "type": "string"
-        },
-        {
           "name": "content_hash",
           "type": {
             "array": [
@@ -628,6 +682,15 @@
         {
           "name": "skills",
           "type": "string"
+        },
+        {
+          "name": "encryption_key",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
         }
       ]
     },
@@ -721,6 +784,19 @@
     }
   ],
   "events": [
+    {
+      "name": "ContentDelivered",
+      "discriminator": [
+        248,
+        79,
+        98,
+        185,
+        91,
+        7,
+        41,
+        83
+      ]
+    },
     {
       "name": "PrayerAnswered",
       "discriminator": [
@@ -871,6 +947,15 @@
             "type": "string"
           },
           {
+            "name": "encryption_key",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
             "name": "prayers_posted",
             "type": "u64"
           },
@@ -898,9 +983,33 @@
       }
     },
     {
+      "name": "ContentDelivered",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "prayer_id",
+            "type": "u64"
+          },
+          {
+            "name": "requester",
+            "type": "pubkey"
+          },
+          {
+            "name": "claimer",
+            "type": "pubkey"
+          },
+          {
+            "name": "encrypted_content",
+            "type": "bytes"
+          }
+        ]
+      }
+    },
+    {
       "name": "Prayer",
       "docs": [
-        "A prayer (request for help) — compact on-chain, full text off-chain"
+        "A prayer (request for help) — all content is private (encrypted off-chain)"
       ],
       "type": {
         "kind": "struct",
@@ -992,10 +1101,6 @@
             "type": "pubkey"
           },
           {
-            "name": "answer",
-            "type": "string"
-          },
-          {
             "name": "answer_hash",
             "type": {
               "array": [
@@ -1003,6 +1108,10 @@
                 32
               ]
             }
+          },
+          {
+            "name": "encrypted_answer",
+            "type": "bytes"
           }
         ]
       }
@@ -1114,10 +1223,6 @@
                 "name": "PrayerType"
               }
             }
-          },
-          {
-            "name": "content",
-            "type": "string"
           },
           {
             "name": "content_hash",

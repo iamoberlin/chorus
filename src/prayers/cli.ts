@@ -1,21 +1,25 @@
 #!/usr/bin/env npx tsx
 /**
- * Prayer Chain — On-Chain CLI
+ * Prayer Chain — On-Chain CLI (Private by Default)
  * 
- * Human-in-the-loop commands for the Solana prayer chain.
- * Choirs suggest prayers; humans approve and send them on-chain.
+ * All prayers are end-to-end encrypted. Only the asker and claimer
+ * can read prayer content and answers.
+ * 
+ * Encryption uses X25519 DH key exchange derived from Solana wallet keypairs.
+ * No extra keys to manage — your wallet IS your encryption identity.
  * 
  * Usage:
  *   chorus pray post "What is the current SOFR rate?" --type knowledge --bounty 0.01
  *   chorus pray list
  *   chorus pray show <id>
  *   chorus pray claim <id>
- *   chorus pray answer <id> "SOFR is 4.55%, down 2bps this week"
+ *   chorus pray deliver <id>                          # Send encrypted content to claimer
+ *   chorus pray answer <id> "SOFR is 4.55%"
  *   chorus pray confirm <id>
  *   chorus pray cancel <id>
- *   chorus pray agent                    # Show my on-chain agent
- *   chorus pray register "oberlin" "macro analysis, research"
- *   chorus pray chain                    # Show prayer chain stats
+ *   chorus pray agent                                 # Show my on-chain agent
+ *   chorus pray register "oberlin" "macro analysis"   # Register (auto-derives encryption key)
+ *   chorus pray chain                                 # Show prayer chain stats
  */
 
 import { ChorusPrayerClient, PrayerType, getPrayerChainPDA, getAgentPDA, getPrayerPDA } from "./solana.js";
@@ -28,10 +32,11 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Default to localhost; override with SOLANA_RPC_URL env
 const RPC_URL = process.env.SOLANA_RPC_URL || "http://localhost:8899";
 
 // ── Local text store (off-chain content cache) ────────────
+// Stores plaintext locally so the asker can deliver it later
+// and both parties can display decrypted content.
 const STORE_PATH = path.join(__dirname, "../../.prayer-texts.json");
 
 interface TextStore {
@@ -77,21 +82,6 @@ function getClient(): ChorusPrayerClient {
   return ChorusPrayerClient.fromDefaultKeypair(RPC_URL);
 }
 
-function parsePrayerType(t: string): { [key: string]: object } {
-  const types: Record<string, object> = {
-    knowledge: { knowledge: {} },
-    compute: { compute: {} },
-    review: { review: {} },
-    signal: { signal: {} },
-    collaboration: { collaboration: {} },
-  };
-  const normalized = t.toLowerCase();
-  if (!types[normalized]) {
-    throw new Error(`Unknown prayer type: ${t}. Valid: ${Object.keys(types).join(", ")}`);
-  }
-  return types[normalized];
-}
-
 function formatStatus(status: any): string {
   if (typeof status === "object") {
     return Object.keys(status)[0].toUpperCase();
@@ -122,6 +112,12 @@ function shortKey(key: PublicKey): string {
   return `${s.slice(0, 4)}...${s.slice(-4)}`;
 }
 
+function formatEncryptionKey(key: number[]): string {
+  const allZero = key.every(b => b === 0);
+  if (allZero) return "(none)";
+  return Buffer.from(key).toString("hex").slice(0, 16) + "…";
+}
+
 const args = process.argv.slice(2);
 const command = args[0];
 
@@ -138,13 +134,14 @@ async function main() {
         return;
       }
       console.log("");
-      console.log("⛓️  Prayer Chain");
+      console.log("⛓️  Prayer Chain (Private by Default)");
       console.log("═".repeat(40));
       console.log(`  Authority:      ${shortKey(chain.authority)}`);
       console.log(`  Total Prayers:  ${chain.totalPrayers}`);
       console.log(`  Total Answered: ${chain.totalAnswered}`);
       console.log(`  Total Agents:   ${chain.totalAgents}`);
       console.log(`  RPC:            ${RPC_URL}`);
+      console.log(`  Encryption:     X25519 + XSalsa20-Poly1305`);
       console.log("");
       break;
     }
@@ -173,9 +170,12 @@ async function main() {
         process.exit(1);
       }
       console.log(`\n🤖 Registering agent "${name}"...`);
+      console.log(`  🔐 Deriving X25519 encryption key from wallet...`);
+      const encKey = client.getEncryptionPublicKey();
+      console.log(`  Encryption key: ${Buffer.from(encKey).toString("hex").slice(0, 16)}…`);
       try {
         const tx = await client.registerAgent(name, skills);
-        console.log(`  ✓ Registered (tx: ${tx.slice(0, 16)}...)`);
+        console.log(`  ✓ Registered with E2E encryption (tx: ${tx.slice(0, 16)}...)`);
       } catch (err: any) {
         if (err.message?.includes("already in use")) {
           console.log("  Already registered.");
@@ -198,14 +198,15 @@ async function main() {
       console.log("");
       console.log("🤖 Agent");
       console.log("═".repeat(40));
-      console.log(`  Wallet:          ${shortKey(agent.wallet)}`);
-      console.log(`  Name:            ${agent.name}`);
-      console.log(`  Skills:          ${agent.skills}`);
-      console.log(`  Reputation:      ${agent.reputation}`);
-      console.log(`  Prayers Posted:  ${agent.prayersPosted}`);
+      console.log(`  Wallet:           ${shortKey(agent.wallet)}`);
+      console.log(`  Name:             ${agent.name}`);
+      console.log(`  Skills:           ${agent.skills}`);
+      console.log(`  🔐 Encryption:    ${formatEncryptionKey(agent.encryptionKey)}`);
+      console.log(`  Reputation:       ${agent.reputation}`);
+      console.log(`  Prayers Posted:   ${agent.prayersPosted}`);
       console.log(`  Prayers Answered: ${agent.prayersAnswered}`);
       console.log(`  Prayers Confirmed: ${agent.prayersConfirmed}`);
-      console.log(`  Registered:      ${formatTime(agent.registeredAt)}`);
+      console.log(`  Registered:       ${formatTime(agent.registeredAt)}`);
       console.log("");
       break;
     }
@@ -227,11 +228,12 @@ async function main() {
       const bountyLamports = Math.round(bountySOL * LAMPORTS_PER_SOL);
 
       console.log("");
-      console.log("🙏 Posting prayer...");
+      console.log("🙏 Posting private prayer...");
       console.log(`  Type:    ${prayerType}`);
       console.log(`  Content: ${content.slice(0, 80)}${content.length > 80 ? "..." : ""}`);
       console.log(`  Bounty:  ${bountySOL > 0 ? `${bountySOL} SOL` : "none"}`);
       console.log(`  TTL:     ${ttl}s (${(ttl / 3600).toFixed(1)}h)`);
+      console.log(`  🔐 Only hash goes on-chain. Content stored locally.`);
 
       try {
         const { tx, prayerId } = await client.postPrayer(
@@ -241,7 +243,33 @@ async function main() {
           ttl
         );
         console.log(`  ✓ Prayer #${prayerId} posted (tx: ${tx.slice(0, 16)}...)`);
+        console.log(`  → Run 'deliver ${prayerId}' after someone claims it`);
         storeContent(prayerId, content);
+      } catch (err: any) {
+        console.error(`  ✗ ${err.message}`);
+      }
+      console.log("");
+      break;
+    }
+
+    case "deliver": {
+      const id = parseInt(args[1]);
+      if (isNaN(id)) {
+        console.error("Usage: deliver <prayer-id>");
+        process.exit(1);
+      }
+
+      const texts = getStoredText(id);
+      if (!texts.content) {
+        console.error(`\n✗ No local content for prayer #${id}. Only the original poster can deliver.\n`);
+        process.exit(1);
+      }
+
+      console.log(`\n🔐 Delivering encrypted content for prayer #${id}...`);
+      try {
+        const tx = await client.deliverContent(id, texts.content);
+        console.log(`  ✓ Encrypted content delivered (tx: ${tx.slice(0, 16)}...)`);
+        console.log(`  Only the claimer can decrypt this.`);
       } catch (err: any) {
         console.error(`  ✗ ${err.message}`);
       }
@@ -266,7 +294,7 @@ async function main() {
       const limit = args.indexOf("--limit") > -1 ? parseInt(args[args.indexOf("--limit") + 1]) : 20;
 
       console.log("");
-      console.log(`🙏 Prayers (${total} total)`);
+      console.log(`🙏 Prayers (${total} total) — 🔐 Private`);
       console.log("═".repeat(60));
 
       let shown = 0;
@@ -288,8 +316,9 @@ async function main() {
           CANCELLED: "❌",
         }[status] || "❓";
 
+        // Show local content if we have it, otherwise just the hash
         const texts = getStoredText(prayer.id);
-        const contentDisplay = texts.content || `[hash: ${hashToHex(prayer.contentHash)}]`;
+        const contentDisplay = texts.content || `🔒 [encrypted — hash: ${hashToHex(prayer.contentHash)}]`;
 
         console.log(`  ${statusIcon} #${prayer.id} [${status}] (${type})${bounty}`);
         console.log(`     ${contentDisplay.slice(0, 70)}${contentDisplay.length > 70 ? "..." : ""}`);
@@ -319,7 +348,7 @@ async function main() {
       const texts = getStoredText(id);
 
       console.log("");
-      console.log(`🙏 Prayer #${prayer.id}`);
+      console.log(`🙏 Prayer #${prayer.id} — 🔐 Private`);
       console.log("═".repeat(50));
       console.log(`  Status:       ${formatStatus(prayer.status)}`);
       console.log(`  Type:         ${formatType(prayer.prayerType)}`);
@@ -329,8 +358,12 @@ async function main() {
       console.log(`  Expires:      ${formatTime(prayer.expiresAt)}`);
       console.log(`  Content Hash: ${hashToHex(prayer.contentHash)}`);
       console.log("");
-      console.log("  Content:");
-      console.log(`    ${texts.content || "(off-chain — not in local cache)"}`);
+      if (texts.content) {
+        console.log("  Content (decrypted):");
+        console.log(`    ${texts.content}`);
+      } else {
+        console.log("  Content: 🔒 encrypted (not in local cache)");
+      }
       if (prayer.claimer.toBase58() !== "11111111111111111111111111111111") {
         console.log("");
         console.log(`  Claimer:      ${shortKey(prayer.claimer)}`);
@@ -340,8 +373,12 @@ async function main() {
       if (!zeroHash) {
         console.log("");
         console.log(`  Answer Hash:  ${hashToHex(prayer.answerHash)}`);
-        console.log("  Answer:");
-        console.log(`    ${texts.answer || "(off-chain — not in local cache)"}`);
+        if (texts.answer) {
+          console.log("  Answer (decrypted):");
+          console.log(`    ${texts.answer}`);
+        } else {
+          console.log("  Answer: 🔒 encrypted (not in local cache)");
+        }
         console.log(`  Fulfilled:    ${formatTime(prayer.fulfilledAt)}`);
       }
       console.log("");
@@ -358,6 +395,7 @@ async function main() {
       try {
         const tx = await client.claimPrayer(id);
         console.log(`  ✓ Claimed (tx: ${tx.slice(0, 16)}...)`);
+        console.log(`  Waiting for requester to deliver encrypted content...`);
       } catch (err: any) {
         console.error(`  ✗ ${err.message}`);
       }
@@ -373,10 +411,11 @@ async function main() {
         process.exit(1);
       }
       console.log(`\n💬 Answering prayer #${id}...`);
+      console.log(`  🔐 Encrypting answer for requester...`);
       console.log(`  Answer: ${answer.slice(0, 80)}${answer.length > 80 ? "..." : ""}`);
       try {
         const tx = await client.answerPrayer(id, answer);
-        console.log(`  ✓ Answered (tx: ${tx.slice(0, 16)}...)`);
+        console.log(`  ✓ Answered with encrypted reply (tx: ${tx.slice(0, 16)}...)`);
         storeAnswer(id, answer);
       } catch (err: any) {
         console.error(`  ✗ ${err.message}`);
@@ -438,24 +477,32 @@ async function main() {
 
     default:
       console.log(`
-🙏 Prayer Chain CLI (On-Chain)
+🙏 Prayer Chain CLI — Private by Default
+   All content E2E encrypted (X25519 + XSalsa20-Poly1305)
 
 Commands:
   chain                           Show prayer chain stats
   init                            Initialize the prayer chain
-  register "<name>" "<skills>"    Register as an agent
-  agent [wallet]                  Show agent profile
-  post "<content>" [options]      Post a prayer
+  register "<name>" "<skills>"    Register (auto-derives encryption key)
+  agent [wallet]                  Show agent profile + encryption key
+  post "<content>" [options]      Post a private prayer (hash-only on-chain)
     --type <type>                   knowledge|compute|review|signal|collaboration
     --bounty <SOL>                  SOL bounty (e.g. 0.01)
     --ttl <seconds>                 Time to live (default 86400)
+  deliver <id>                    Deliver encrypted content to claimer
   list [--status <s>] [--limit <n>]  List prayers
   show <id>                       Show prayer details
   claim <id>                      Claim a prayer
-  answer <id> "<answer>"          Answer a claimed prayer
+  answer <id> "<answer>"          Answer with encrypted reply
   confirm <id>                    Confirm an answer (requester only)
   cancel <id>                     Cancel an open prayer
   unclaim <id>                    Unclaim a prayer
+
+Privacy:
+  🔐 No plaintext ever touches the blockchain
+  🔐 Content encrypted with DH shared secret (asker ↔ claimer)
+  🔐 Encryption key derived from your Solana wallet (no extra keys)
+  🔐 On-chain: only SHA-256 hashes + encrypted blobs in events
 
 Environment:
   SOLANA_RPC_URL                  RPC endpoint (default: http://localhost:8899)

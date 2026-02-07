@@ -1,7 +1,7 @@
 {
   "name": "@iamoberlin/chorus",
   "version": "2.0.0",
-  "description": "CHORUS: Hierarchy Of Recursive Unified Self-improvement \u2014 with on-chain Prayer Chain (Solana)",
+  "description": "CHORUS: Hierarchy Of Recursive Unified Self-improvement — with on-chain Prayer Chain (Solana)",
   "author": "Oberlin <iam@oberlin.ai>",
   "license": "MIT",
   "repository": {
@@ -49,7 +49,8 @@
   },
   "dependencies": {
     "@coral-xyz/anchor": "^0.32.1",
-    "@solana/web3.js": "^1.98.4"
+    "@solana/web3.js": "^1.98.4",
+    "tweetnacl": "^1.0.3"
   },
   "devDependencies": {
     "@types/chai": "^5.2.3",

@@ -2,7 +2,8 @@
  * CHORUS Prayer Chain — Solana Client
  * 
  * TypeScript client for interacting with the on-chain prayer program.
- * Wraps the Anchor-generated IDL for ergonomic usage.
+ * All prayers are private by default — content is encrypted end-to-end
+ * using X25519 DH key exchange derived from Solana wallet keypairs.
  */
 
 import { Program, AnchorProvider, web3, Wallet } from "@coral-xyz/anchor";
@@ -12,6 +13,12 @@ import { createHash } from "crypto";
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
+import {
+  deriveEncryptionKeypair,
+  encryptForRecipient,
+  decryptFromSender,
+  getEncryptionKeyForChain,
+} from "./crypto.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -49,6 +56,7 @@ export interface AgentAccount {
   wallet: PublicKey;
   name: string;
   skills: string;
+  encryptionKey: number[];       // X25519 public key for E2E encryption
   prayersPosted: number;
   prayersAnswered: number;
   prayersConfirmed: number;
@@ -60,12 +68,12 @@ export interface PrayerAccount {
   id: number;
   requester: PublicKey;
   prayerType: PrayerType;
-  contentHash: number[];         // SHA-256 of content (full text off-chain)
+  contentHash: number[];         // SHA-256 of plaintext content
   rewardLamports: number;
   status: PrayerStatus;
   claimer: PublicKey;
   claimedAt: number;
-  answerHash: number[];          // SHA-256 of answer (full text off-chain)
+  answerHash: number[];          // SHA-256 of plaintext answer
   createdAt: number;
   expiresAt: number;
   fulfilledAt: number;
@@ -73,10 +81,9 @@ export interface PrayerAccount {
 
 // Load IDL from the build output
 function loadIDL(): any {
-  // Try multiple locations: checked-in idl/, build output, npm package
   const candidates = [
-    path.join(__dirname, "../../idl/chorus_prayers.json"),          // checked into git
-    path.join(__dirname, "../../target/idl/chorus_prayers.json"),   // anchor build output
+    path.join(__dirname, "../../idl/chorus_prayers.json"),
+    path.join(__dirname, "../../target/idl/chorus_prayers.json"),
   ];
   for (const idlPath of candidates) {
     if (fs.existsSync(idlPath)) {
@@ -113,12 +120,17 @@ export function getPrayerPDA(prayerId: number): [PublicKey, number] {
 }
 
 /**
- * CHORUS Prayer Chain Client
+ * CHORUS Prayer Chain Client — Private by Default
+ * 
+ * All prayer content is encrypted end-to-end. Only the asker and claimer
+ * can read prayer content and answers.
  */
 export class ChorusPrayerClient {
   program: Program;
   provider: AnchorProvider;
   wallet: PublicKey;
+  private keypair: Keypair;
+  private encryptionKeypair: { publicKey: Uint8Array; secretKey: Uint8Array };
 
   constructor(connection: Connection, keypair: Keypair) {
     const wallet = new Wallet(keypair);
@@ -128,28 +140,46 @@ export class ChorusPrayerClient {
     const idl = loadIDL();
     this.program = new Program(idl, this.provider);
     this.wallet = keypair.publicKey;
+    this.keypair = keypair;
+    this.encryptionKeypair = deriveEncryptionKeypair(keypair);
   }
 
-  /**
-   * Create from a keypair file path
-   */
-  static fromKeypairFile(
-    rpcUrl: string,
-    keypairPath: string
-  ): ChorusPrayerClient {
+  static fromKeypairFile(rpcUrl: string, keypairPath: string): ChorusPrayerClient {
     const connection = new Connection(rpcUrl, "confirmed");
     const raw = JSON.parse(fs.readFileSync(keypairPath, "utf-8"));
     const keypair = Keypair.fromSecretKey(Uint8Array.from(raw));
     return new ChorusPrayerClient(connection, keypair);
   }
 
-  /**
-   * Create from default Solana CLI keypair
-   */
   static fromDefaultKeypair(rpcUrl: string): ChorusPrayerClient {
     const home = process.env.HOME || process.env.USERPROFILE || "";
     const keypairPath = path.join(home, ".config", "solana", "id.json");
     return ChorusPrayerClient.fromKeypairFile(rpcUrl, keypairPath);
+  }
+
+  /** Get this agent's X25519 encryption public key (for on-chain storage) */
+  getEncryptionPublicKey(): number[] {
+    return Array.from(this.encryptionKeypair.publicKey);
+  }
+
+  /** 
+   * Encrypt content for a recipient given their on-chain encryption key.
+   * Returns the encrypted blob as a number array (for Anchor serialization).
+   */
+  encrypt(plaintext: string, recipientEncryptionKey: number[]): number[] {
+    const recipientKey = Uint8Array.from(recipientEncryptionKey);
+    const encrypted = encryptForRecipient(plaintext, recipientKey, this.encryptionKeypair.secretKey);
+    return Array.from(encrypted);
+  }
+
+  /**
+   * Decrypt content from a sender given their on-chain encryption key.
+   * Returns the plaintext string, or null if decryption fails.
+   */
+  decrypt(encryptedBlob: number[], senderEncryptionKey: number[]): string | null {
+    const blob = Uint8Array.from(encryptedBlob);
+    const senderKey = Uint8Array.from(senderEncryptionKey);
+    return decryptFromSender(blob, senderKey, this.encryptionKeypair.secretKey);
   }
 
   // ── Read Methods ──────────────────────────────────────────
@@ -177,6 +207,7 @@ export class ChorusPrayerClient {
         wallet: account.wallet,
         name: account.name,
         skills: account.skills,
+        encryptionKey: account.encryptionKey,
         prayersPosted: account.prayersPosted.toNumber(),
         prayersAnswered: account.prayersAnswered.toNumber(),
         prayersConfirmed: account.prayersConfirmed.toNumber(),
@@ -218,7 +249,6 @@ export class ChorusPrayerClient {
     const prayers: PrayerAccount[] = [];
     const total = chain.totalPrayers;
 
-    // Scan backwards from newest
     for (let i = total - 1; i >= 0 && prayers.length < limit; i--) {
       const prayer = await this.getPrayer(i);
       if (prayer && prayer.status === PrayerStatus.Open) {
@@ -250,8 +280,10 @@ export class ChorusPrayerClient {
     const [prayerChainPda] = getPrayerChainPDA();
     const [agentPda] = getAgentPDA(this.wallet);
 
+    const encryptionKey = this.getEncryptionPublicKey();
+
     const tx = await this.program.methods
-      .registerAgent(name, skills)
+      .registerAgent(name, skills, encryptionKey)
       .accounts({
         prayerChain: prayerChainPda,
         agent: agentPda,
@@ -263,11 +295,16 @@ export class ChorusPrayerClient {
     return tx;
   }
 
+  /**
+   * Post a prayer. Content is stored locally and as a hash on-chain.
+   * No plaintext ever touches the blockchain.
+   * After someone claims, call deliverContent() to send them the encrypted text.
+   */
   async postPrayer(
     prayerType: PrayerType,
     content: string,
     rewardLamports = 0,
-    ttlSeconds = 86400 // 24 hours default
+    ttlSeconds = 86400
   ): Promise<{ tx: string; prayerId: number }> {
     const chain = await this.getPrayerChain();
     if (!chain) throw new Error("PrayerChain not initialized");
@@ -277,13 +314,12 @@ export class ChorusPrayerClient {
     const [agentPda] = getAgentPDA(this.wallet);
     const [prayerPda] = getPrayerPDA(prayerId);
 
-    // Handle both enum values and string names
     const typeName = typeof prayerType === "string" ? prayerType.toLowerCase() : PrayerType[prayerType].toLowerCase();
     const typeArg = { [typeName]: {} };
     const contentHash = Array.from(createHash("sha256").update(content).digest());
 
     const tx = await this.program.methods
-      .postPrayer(typeArg, content, contentHash, new BN(rewardLamports), new BN(ttlSeconds))
+      .postPrayer(typeArg, contentHash, new BN(rewardLamports), new BN(ttlSeconds))
       .accounts({
         prayerChain: prayerChainPda,
         requesterAgent: agentPda,
@@ -312,22 +348,58 @@ export class ChorusPrayerClient {
     return tx;
   }
 
-  async answerPrayer(
-    prayerId: number,
-    answer: string,
-    fullAnswer?: string
-  ): Promise<string> {
+  /**
+   * Deliver encrypted prayer content to the claimer.
+   * Call this after someone claims your prayer.
+   * Looks up the claimer's encryption key on-chain and encrypts the content.
+   */
+  async deliverContent(prayerId: number, plaintext: string): Promise<string> {
+    const prayer = await this.getPrayer(prayerId);
+    if (!prayer) throw new Error("Prayer not found");
+    
+    // Look up claimer's encryption key
+    const claimerAgent = await this.getAgent(prayer.claimer);
+    if (!claimerAgent) throw new Error("Claimer agent not found");
+
+    // Encrypt content for the claimer
+    const encryptedContent = this.encrypt(plaintext, claimerAgent.encryptionKey);
+
+    const [prayerPda] = getPrayerPDA(prayerId);
+
+    const tx = await this.program.methods
+      .deliverContent(Buffer.from(encryptedContent))
+      .accounts({
+        prayer: prayerPda,
+        requester: this.wallet,
+      })
+      .rpc();
+
+    return tx;
+  }
+
+  /**
+   * Answer a claimed prayer with encrypted answer.
+   * Encrypts the answer for the requester using their on-chain encryption key.
+   */
+  async answerPrayer(prayerId: number, answer: string): Promise<string> {
+    const prayer = await this.getPrayer(prayerId);
+    if (!prayer) throw new Error("Prayer not found");
+
+    // Look up requester's encryption key
+    const requesterAgent = await this.getAgent(prayer.requester);
+    if (!requesterAgent) throw new Error("Requester agent not found");
+
     const [prayerPda] = getPrayerPDA(prayerId);
     const [prayerChainPda] = getPrayerChainPDA();
     const [agentPda] = getAgentPDA(this.wallet);
 
-    // Hash the full answer (or the short answer if no full version)
-    const toHash = fullAnswer || answer;
-    const hash = createHash("sha256").update(toHash).digest();
-    const answerHash = Array.from(hash);
+    const answerHash = Array.from(createHash("sha256").update(answer).digest());
+    
+    // Encrypt answer for the requester
+    const encryptedAnswer = this.encrypt(answer, requesterAgent.encryptionKey);
 
     const tx = await this.program.methods
-      .answerPrayer(answer, answerHash)
+      .answerPrayer(answerHash, Buffer.from(encryptedAnswer))
       .accounts({
         prayerChain: prayerChainPda,
         prayer: prayerPda,

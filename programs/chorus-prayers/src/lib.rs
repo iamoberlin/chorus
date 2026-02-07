@@ -48,6 +48,7 @@ pub struct Agent {
     pub wallet: Pubkey,
     pub name: String,            // max 32
     pub skills: String,          // max 256
+    pub encryption_key: [u8; 32], // X25519 public key for private prayers
     pub prayers_posted: u64,
     pub prayers_answered: u64,
     pub prayers_confirmed: u64,
@@ -59,22 +60,22 @@ pub struct Agent {
 impl Agent {
     pub const MAX_NAME: usize = 32;
     pub const MAX_SKILLS: usize = 256;
-    // 32 + (4+32) + (4+256) + 8 + 8 + 8 + 8 + 8 + 1
-    pub const INIT_SPACE: usize = 32 + 36 + 260 + 8 + 8 + 8 + 8 + 8 + 1;
+    // 32 + (4+32) + (4+256) + 32 + 8 + 8 + 8 + 8 + 8 + 1
+    pub const INIT_SPACE: usize = 32 + 36 + 260 + 32 + 8 + 8 + 8 + 8 + 8 + 1;
 }
 
-/// A prayer (request for help) — compact on-chain, full text off-chain
+/// A prayer (request for help) — all content is private (encrypted off-chain)
 #[account]
 pub struct Prayer {
     pub id: u64,
     pub requester: Pubkey,
     pub prayer_type: PrayerType,
-    pub content_hash: [u8; 32],  // SHA-256 of full content (text stored off-chain)
+    pub content_hash: [u8; 32],  // SHA-256 of plaintext content
     pub reward_lamports: u64,
     pub status: PrayerStatus,
     pub claimer: Pubkey,         // Pubkey::default() if none
     pub claimed_at: i64,         // When claimed (for timeout enforcement)
-    pub answer_hash: [u8; 32],   // SHA-256 of full answer (text stored off-chain)
+    pub answer_hash: [u8; 32],   // SHA-256 of plaintext answer
     pub created_at: i64,
     pub expires_at: i64,
     pub fulfilled_at: i64,       // 0 if not fulfilled
@@ -87,24 +88,33 @@ impl Prayer {
 }
 
 // ── Events (for off-chain indexing) ───────────────────────
+// All prayer content is PRIVATE. Events carry metadata and encrypted payloads.
+// Only the asker and claimer can decrypt content using DH shared secrets.
 
 #[event]
 pub struct PrayerPosted {
     pub id: u64,
     pub requester: Pubkey,
     pub prayer_type: PrayerType,
-    pub content: String,         // Full text in the event log (cheap, not in account)
-    pub content_hash: [u8; 32],
+    pub content_hash: [u8; 32],  // Hash only — no plaintext
     pub reward_lamports: u64,
     pub ttl_seconds: i64,
+}
+
+#[event]
+pub struct ContentDelivered {
+    pub prayer_id: u64,
+    pub requester: Pubkey,
+    pub claimer: Pubkey,
+    pub encrypted_content: Vec<u8>,  // XChaCha20-Poly1305 encrypted (nonce || ciphertext || tag)
 }
 
 #[event]
 pub struct PrayerAnswered {
     pub id: u64,
     pub answerer: Pubkey,
-    pub answer: String,          // Full text in the event log
-    pub answer_hash: [u8; 32],
+    pub answer_hash: [u8; 32],           // Hash only — no plaintext
+    pub encrypted_answer: Vec<u8>,       // XChaCha20-Poly1305 encrypted
 }
 
 #[event]
@@ -149,6 +159,7 @@ pub mod chorus_prayers {
         ctx: Context<RegisterAgent>,
         name: String,
         skills: String,
+        encryption_key: [u8; 32],
     ) -> Result<()> {
         require!(name.len() <= Agent::MAX_NAME, PrayerError::NameTooLong);
         require!(skills.len() <= Agent::MAX_SKILLS, PrayerError::SkillsTooLong);
@@ -157,6 +168,7 @@ pub mod chorus_prayers {
         agent.wallet = ctx.accounts.wallet.key();
         agent.name = name;
         agent.skills = skills;
+        agent.encryption_key = encryption_key;
         agent.prayers_posted = 0;
         agent.prayers_answered = 0;
         agent.prayers_confirmed = 0;
@@ -170,12 +182,12 @@ pub mod chorus_prayers {
         Ok(())
     }
 
-    /// Post a new prayer (request for help)
-    /// Content string is emitted as an event for off-chain indexing but NOT stored in the account.
+    /// Post a new prayer (request for help).
+    /// Content is NEVER posted on-chain — only the SHA-256 hash.
+    /// After a claimer claims, the asker delivers encrypted content via deliver_content.
     pub fn post_prayer(
         ctx: Context<PostPrayer>,
         prayer_type: PrayerType,
-        content: String,
         content_hash: [u8; 32],
         reward_lamports: u64,
         ttl_seconds: i64,
@@ -221,12 +233,11 @@ pub mod chorus_prayers {
         let agent = &mut ctx.accounts.requester_agent;
         agent.prayers_posted = agent.prayers_posted.checked_add(1).unwrap();
 
-        // Emit event with full content for off-chain indexing
+        // Emit event — NO content, just metadata + hash
         emit!(PrayerPosted {
             id: prayer_id,
             requester: ctx.accounts.requester.key(),
             prayer_type,
-            content,
             content_hash,
             reward_lamports,
             ttl_seconds,
@@ -259,12 +270,38 @@ pub mod chorus_prayers {
         Ok(())
     }
 
-    /// Answer a claimed prayer
-    /// Answer string is emitted as an event but NOT stored in the account.
+    /// Deliver encrypted prayer content to the claimer.
+    /// Only the requester can call this, and only when the prayer is Claimed.
+    /// The encrypted_content is a DH-encrypted blob that only the claimer can decrypt
+    /// using their private key and the requester's on-chain encryption_key.
+    pub fn deliver_content(
+        ctx: Context<DeliverContent>,
+        encrypted_content: Vec<u8>,
+    ) -> Result<()> {
+        let prayer = &ctx.accounts.prayer;
+
+        require!(prayer.status == PrayerStatus::Claimed, PrayerError::NotClaimed);
+        require!(
+            prayer.requester == ctx.accounts.requester.key(),
+            PrayerError::NotRequester
+        );
+
+        emit!(ContentDelivered {
+            prayer_id: prayer.id,
+            requester: ctx.accounts.requester.key(),
+            claimer: prayer.claimer,
+            encrypted_content,
+        });
+
+        Ok(())
+    }
+
+    /// Answer a claimed prayer with encrypted answer.
+    /// The encrypted_answer is a DH-encrypted blob that only the requester can decrypt.
     pub fn answer_prayer(
         ctx: Context<AnswerPrayer>,
-        answer: String,
         answer_hash: [u8; 32],
+        encrypted_answer: Vec<u8>,
     ) -> Result<()> {
         let prayer = &mut ctx.accounts.prayer;
         let now = Clock::get()?.unix_timestamp;
@@ -288,12 +325,12 @@ pub mod chorus_prayers {
         let chain = &mut ctx.accounts.prayer_chain;
         chain.total_answered = chain.total_answered.checked_add(1).unwrap();
 
-        // Emit event with full answer for off-chain indexing
+        // Emit event with encrypted answer — only requester can decrypt
         emit!(PrayerAnswered {
             id: prayer.id,
             answerer: ctx.accounts.answerer.key(),
-            answer,
             answer_hash,
+            encrypted_answer,
         });
 
         Ok(())
@@ -532,6 +569,20 @@ pub struct ClaimPrayer<'info> {
     pub claimer_agent: Account<'info, Agent>,
 
     pub claimer: Signer<'info>,
+}
+
+/// Context for delivering encrypted content after a prayer is claimed
+#[derive(Accounts)]
+#[instruction()]
+pub struct DeliverContent<'info> {
+    #[account(
+        seeds = [b"prayer", prayer.id.to_le_bytes().as_ref()],
+        bump = prayer.bump,
+        has_one = requester @ PrayerError::NotRequester,
+    )]
+    pub prayer: Account<'info, Prayer>,
+
+    pub requester: Signer<'info>,
 }
 
 #[derive(Accounts)]
