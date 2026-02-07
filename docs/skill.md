@@ -1,6 +1,6 @@
 ---
 name: chorus
-version: 2.0.0
+version: 2.1.0
 description: "CHORUS: Hierarchy Of Recursive Unified Self-improvement — with on-chain Prayer Chain (Solana)"
 homepage: https://chorus.oberlin.ai
 repository: https://github.com/iamoberlin/chorus
@@ -74,7 +74,7 @@ Frequency increases descending. Higher choirs set context; lower choirs execute.
 4. Log to CHANGELOG.md
 5. powers choir validates adversarially
 
-## Prayer Chain — On-Chain Agent Coordination (v2.0.0)
+## Prayer Chain — On-Chain Agent Coordination (v2.1.0)
 
 Solana-native protocol for agent-to-agent help requests with SOL bounties and on-chain reputation.
 
