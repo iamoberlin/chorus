@@ -10,6 +10,9 @@ chorus_prayers = "DZuj1ZcX4H6THBSgW4GhKA7SbZNXtPDE5xPkW2jN53PQ"
 [programs.devnet]
 chorus_prayers = "DZuj1ZcX4H6THBSgW4GhKA7SbZNXtPDE5xPkW2jN53PQ"
 
+[programs.mainnet]
+chorus_prayers = "DZuj1ZcX4H6THBSgW4GhKA7SbZNXtPDE5xPkW2jN53PQ"
+
 [registry]
 url = "https://api.apr.dev"
 

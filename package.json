@@ -37,7 +37,7 @@
     "src/",
     "openclaw.plugin.json",
     "logo.png",
-    "target/idl/"
+    "idl/"
   ],
   "peerDependencies": {
     "openclaw": ">=2026.1.0"

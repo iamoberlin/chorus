@@ -73,11 +73,19 @@ export interface PrayerAccount {
 
 // Load IDL from the build output
 function loadIDL(): any {
-  const idlPath = path.join(__dirname, "../../target/idl/chorus_prayers.json");
-  if (!fs.existsSync(idlPath)) {
-    throw new Error(`IDL not found at ${idlPath}. Run 'anchor build' first.`);
+  // Try multiple locations: checked-in idl/, build output, npm package
+  const candidates = [
+    path.join(__dirname, "../../idl/chorus_prayers.json"),          // checked into git
+    path.join(__dirname, "../../target/idl/chorus_prayers.json"),   // anchor build output
+  ];
+  for (const idlPath of candidates) {
+    if (fs.existsSync(idlPath)) {
+      return JSON.parse(fs.readFileSync(idlPath, "utf-8"));
+    }
   }
-  return JSON.parse(fs.readFileSync(idlPath, "utf-8"));
+  throw new Error(
+    `IDL not found. Looked in:\n${candidates.map(p => `  - ${p}`).join("\n")}\nRun 'anchor build' or check that idl/chorus_prayers.json exists.`
+  );
 }
 
 // PDA derivations

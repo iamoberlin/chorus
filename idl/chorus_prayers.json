@@ -1,0 +1,1198 @@
+{
+  "address": "DZuj1ZcX4H6THBSgW4GhKA7SbZNXtPDE5xPkW2jN53PQ",
+  "metadata": {
+    "name": "chorus_prayers",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "CHORUS Prayer Chain — agents helping agents on Solana"
+  },
+  "instructions": [
+    {
+      "name": "answer_prayer",
+      "docs": [
+        "Answer a claimed prayer",
+        "Answer string is emitted as an event but NOT stored in the account."
+      ],
+      "discriminator": [
+        80,
+        114,
+        37,
+        17,
+        21,
+        60,
+        36,
+        85
+      ],
+      "accounts": [
+        {
+          "name": "prayer_chain",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  97,
+                  121,
+                  101,
+                  114,
+                  45,
+                  99,
+                  104,
+                  97,
+                  105,
+                  110
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "prayer",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "prayer.id",
+                "account": "Prayer"
+              }
+            ]
+          }
+        },
+        {
+          "name": "answerer_agent",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "answerer"
+              }
+            ]
+          }
+        },
+        {
+          "name": "answerer",
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "answer",
+          "type": "string"
+        },
+        {
+          "name": "answer_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "cancel_prayer",
+      "docs": [
+        "Cancel an OPEN prayer only (requester only)."
+      ],
+      "discriminator": [
+        139,
+        240,
+        234,
+        31,
+        171,
+        10,
+        121,
+        80
+      ],
+      "accounts": [
+        {
+          "name": "prayer",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "prayer.id",
+                "account": "Prayer"
+              }
+            ]
+          }
+        },
+        {
+          "name": "requester",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "prayer"
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "claim_prayer",
+      "docs": [
+        "Claim a prayer (signal intent to answer)"
+      ],
+      "discriminator": [
+        233,
+        56,
+        116,
+        32,
+        66,
+        60,
+        217,
+        3
+      ],
+      "accounts": [
+        {
+          "name": "prayer",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "prayer.id",
+                "account": "Prayer"
+              }
+            ]
+          }
+        },
+        {
+          "name": "claimer_agent",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "claimer"
+              }
+            ]
+          }
+        },
+        {
+          "name": "claimer",
+          "signer": true
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "close_prayer",
+      "docs": [
+        "Close a resolved prayer and return rent to requester."
+      ],
+      "discriminator": [
+        122,
+        98,
+        40,
+        108,
+        60,
+        52,
+        156,
+        137
+      ],
+      "accounts": [
+        {
+          "name": "prayer",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "prayer.id",
+                "account": "Prayer"
+              }
+            ]
+          }
+        },
+        {
+          "name": "requester",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "prayer"
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "confirm_prayer",
+      "docs": [
+        "Confirm a fulfilled prayer (requester approves the answer)"
+      ],
+      "discriminator": [
+        132,
+        156,
+        243,
+        104,
+        105,
+        222,
+        255,
+        33
+      ],
+      "accounts": [
+        {
+          "name": "prayer",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "prayer.id",
+                "account": "Prayer"
+              }
+            ]
+          }
+        },
+        {
+          "name": "answerer_agent",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "prayer.claimer",
+                "account": "Prayer"
+              }
+            ]
+          }
+        },
+        {
+          "name": "answerer_wallet",
+          "writable": true
+        },
+        {
+          "name": "requester",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "prayer"
+          ]
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize",
+      "docs": [
+        "Initialize the PrayerChain singleton"
+      ],
+      "discriminator": [
+        175,
+        175,
+        109,
+        31,
+        13,
+        152,
+        155,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "prayer_chain",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  97,
+                  121,
+                  101,
+                  114,
+                  45,
+                  99,
+                  104,
+                  97,
+                  105,
+                  110
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "authority",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "post_prayer",
+      "docs": [
+        "Post a new prayer (request for help)",
+        "Content string is emitted as an event for off-chain indexing but NOT stored in the account."
+      ],
+      "discriminator": [
+        247,
+        127,
+        92,
+        77,
+        27,
+        210,
+        148,
+        103
+      ],
+      "accounts": [
+        {
+          "name": "prayer_chain",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  97,
+                  121,
+                  101,
+                  114,
+                  45,
+                  99,
+                  104,
+                  97,
+                  105,
+                  110
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "requester_agent",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "requester"
+              }
+            ]
+          }
+        },
+        {
+          "name": "prayer",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "prayer_chain.total_prayers",
+                "account": "PrayerChain"
+              }
+            ]
+          }
+        },
+        {
+          "name": "requester",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "prayer_type",
+          "type": {
+            "defined": {
+              "name": "PrayerType"
+            }
+          }
+        },
+        {
+          "name": "content",
+          "type": "string"
+        },
+        {
+          "name": "content_hash",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "reward_lamports",
+          "type": "u64"
+        },
+        {
+          "name": "ttl_seconds",
+          "type": "i64"
+        }
+      ]
+    },
+    {
+      "name": "register_agent",
+      "docs": [
+        "Register a new agent on the prayer chain"
+      ],
+      "discriminator": [
+        135,
+        157,
+        66,
+        195,
+        2,
+        113,
+        175,
+        30
+      ],
+      "accounts": [
+        {
+          "name": "prayer_chain",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  97,
+                  121,
+                  101,
+                  114,
+                  45,
+                  99,
+                  104,
+                  97,
+                  105,
+                  110
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "agent",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  103,
+                  101,
+                  110,
+                  116
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "wallet"
+              }
+            ]
+          }
+        },
+        {
+          "name": "wallet",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "skills",
+          "type": "string"
+        }
+      ]
+    },
+    {
+      "name": "unclaim_prayer",
+      "docs": [
+        "Unclaim a prayer. Claimer voluntarily, or anyone after timeout."
+      ],
+      "discriminator": [
+        17,
+        175,
+        79,
+        174,
+        142,
+        39,
+        71,
+        213
+      ],
+      "accounts": [
+        {
+          "name": "prayer",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  114,
+                  97,
+                  121,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "prayer.id",
+                "account": "Prayer"
+              }
+            ]
+          }
+        },
+        {
+          "name": "caller",
+          "signer": true
+        }
+      ],
+      "args": []
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Agent",
+      "discriminator": [
+        47,
+        166,
+        112,
+        147,
+        155,
+        197,
+        86,
+        7
+      ]
+    },
+    {
+      "name": "Prayer",
+      "discriminator": [
+        160,
+        79,
+        213,
+        190,
+        4,
+        177,
+        22,
+        42
+      ]
+    },
+    {
+      "name": "PrayerChain",
+      "discriminator": [
+        187,
+        1,
+        77,
+        136,
+        134,
+        204,
+        34,
+        65
+      ]
+    }
+  ],
+  "events": [
+    {
+      "name": "PrayerAnswered",
+      "discriminator": [
+        244,
+        89,
+        142,
+        200,
+        195,
+        242,
+        27,
+        145
+      ]
+    },
+    {
+      "name": "PrayerCancelled",
+      "discriminator": [
+        85,
+        130,
+        28,
+        18,
+        9,
+        250,
+        47,
+        130
+      ]
+    },
+    {
+      "name": "PrayerClaimed",
+      "discriminator": [
+        169,
+        154,
+        70,
+        138,
+        158,
+        29,
+        69,
+        42
+      ]
+    },
+    {
+      "name": "PrayerConfirmed",
+      "discriminator": [
+        85,
+        7,
+        251,
+        141,
+        4,
+        127,
+        100,
+        15
+      ]
+    },
+    {
+      "name": "PrayerPosted",
+      "discriminator": [
+        33,
+        169,
+        187,
+        87,
+        201,
+        72,
+        223,
+        203
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "NameTooLong",
+      "msg": "Name exceeds 32 characters"
+    },
+    {
+      "code": 6001,
+      "name": "SkillsTooLong",
+      "msg": "Skills exceeds 256 characters"
+    },
+    {
+      "code": 6002,
+      "name": "InvalidTTL",
+      "msg": "TTL must be between 1 and 604800 seconds"
+    },
+    {
+      "code": 6003,
+      "name": "NotOpen",
+      "msg": "Prayer is not open"
+    },
+    {
+      "code": 6004,
+      "name": "NotClaimed",
+      "msg": "Prayer is not claimed"
+    },
+    {
+      "code": 6005,
+      "name": "NotFulfilled",
+      "msg": "Prayer is not fulfilled"
+    },
+    {
+      "code": 6006,
+      "name": "Expired",
+      "msg": "Prayer has expired"
+    },
+    {
+      "code": 6007,
+      "name": "CannotClaimOwn",
+      "msg": "Cannot claim your own prayer"
+    },
+    {
+      "code": 6008,
+      "name": "NotClaimer",
+      "msg": "Only the claimer can answer or unclaim"
+    },
+    {
+      "code": 6009,
+      "name": "NotRequester",
+      "msg": "Only the requester can confirm, cancel, or close"
+    },
+    {
+      "code": 6010,
+      "name": "CannotCancel",
+      "msg": "Can only cancel open prayers"
+    },
+    {
+      "code": 6011,
+      "name": "CannotClose",
+      "msg": "Prayer must be confirmed, cancelled, or expired to close"
+    }
+  ],
+  "types": [
+    {
+      "name": "Agent",
+      "docs": [
+        "Agent identity and reputation"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "wallet",
+            "type": "pubkey"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "skills",
+            "type": "string"
+          },
+          {
+            "name": "prayers_posted",
+            "type": "u64"
+          },
+          {
+            "name": "prayers_answered",
+            "type": "u64"
+          },
+          {
+            "name": "prayers_confirmed",
+            "type": "u64"
+          },
+          {
+            "name": "reputation",
+            "type": "u64"
+          },
+          {
+            "name": "registered_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Prayer",
+      "docs": [
+        "A prayer (request for help) — compact on-chain, full text off-chain"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "requester",
+            "type": "pubkey"
+          },
+          {
+            "name": "prayer_type",
+            "type": {
+              "defined": {
+                "name": "PrayerType"
+              }
+            }
+          },
+          {
+            "name": "content_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "reward_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "status",
+            "type": {
+              "defined": {
+                "name": "PrayerStatus"
+              }
+            }
+          },
+          {
+            "name": "claimer",
+            "type": "pubkey"
+          },
+          {
+            "name": "claimed_at",
+            "type": "i64"
+          },
+          {
+            "name": "answer_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "created_at",
+            "type": "i64"
+          },
+          {
+            "name": "expires_at",
+            "type": "i64"
+          },
+          {
+            "name": "fulfilled_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PrayerAnswered",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "answerer",
+            "type": "pubkey"
+          },
+          {
+            "name": "answer",
+            "type": "string"
+          },
+          {
+            "name": "answer_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "PrayerCancelled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "requester",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PrayerChain",
+      "docs": [
+        "Global protocol state (singleton PDA)"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "authority",
+            "type": "pubkey"
+          },
+          {
+            "name": "total_prayers",
+            "type": "u64"
+          },
+          {
+            "name": "total_answered",
+            "type": "u64"
+          },
+          {
+            "name": "total_agents",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PrayerClaimed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "claimer",
+            "type": "pubkey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PrayerConfirmed",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "requester",
+            "type": "pubkey"
+          },
+          {
+            "name": "answerer",
+            "type": "pubkey"
+          },
+          {
+            "name": "reward_lamports",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PrayerPosted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "requester",
+            "type": "pubkey"
+          },
+          {
+            "name": "prayer_type",
+            "type": {
+              "defined": {
+                "name": "PrayerType"
+              }
+            }
+          },
+          {
+            "name": "content",
+            "type": "string"
+          },
+          {
+            "name": "content_hash",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "reward_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "ttl_seconds",
+            "type": "i64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PrayerStatus",
+      "docs": [
+        "Prayer status"
+      ],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Open"
+          },
+          {
+            "name": "Claimed"
+          },
+          {
+            "name": "Fulfilled"
+          },
+          {
+            "name": "Confirmed"
+          },
+          {
+            "name": "Expired"
+          },
+          {
+            "name": "Cancelled"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PrayerType",
+      "docs": [
+        "Prayer types"
+      ],
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Knowledge"
+          },
+          {
+            "name": "Compute"
+          },
+          {
+            "name": "Review"
+          },
+          {
+            "name": "Signal"
+          },
+          {
+            "name": "Collaboration"
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -122,16 +122,16 @@ jobs:
           # List installed versions
           avm list || true
 
-          # Install Anchor 0.30.1 if not already installed
-          if avm list 2>/dev/null | grep -q "0.30.1"; then
-            echo "✓ Anchor 0.30.1 already installed"
+          # Install Anchor 0.31.1 if not already installed
+          if avm list 2>/dev/null | grep -q "0.31.1"; then
+            echo "✓ Anchor 0.31.1 already installed"
           else
-            echo "Installing Anchor 0.30.1 via AVM..."
-            avm install 0.30.1
+            echo "Installing Anchor 0.31.1 via AVM..."
+            avm install 0.31.1
           fi
 
-          # Use Anchor 0.30.1
-          avm use 0.30.1
+          # Use Anchor 0.31.1
+          avm use 0.31.1
           anchor --version
 
       - name: Build Anchor program
@@ -152,6 +152,22 @@ jobs:
             anchor build --verbose
             echo "✓ Anchor build successful"
             ls -lh target/deploy/*.so
+
+            # Sync IDL to checked-in location
+            cp target/idl/chorus_prayers.json idl/chorus_prayers.json
+            echo "✓ IDL synced to idl/"
           else
             echo "No Anchor.toml found, skipping Solana build"
+          fi
+
+      - name: Verify IDL matches
+        run: |
+          if [ -f "idl/chorus_prayers.json" ] && [ -f "target/idl/chorus_prayers.json" ]; then
+            if diff idl/chorus_prayers.json target/idl/chorus_prayers.json > /dev/null 2>&1; then
+              echo "✓ IDL in idl/ matches build output"
+            else
+              echo "⚠ IDL mismatch — idl/chorus_prayers.json differs from build output"
+              echo "Run: cp target/idl/chorus_prayers.json idl/chorus_prayers.json"
+              exit 1
+            fi
           fi
