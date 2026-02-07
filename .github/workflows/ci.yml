@@ -122,17 +122,20 @@ jobs:
           # List installed versions
           avm list || true
 
-          # Install Anchor 0.31.1 if not already installed
-          if avm list 2>/dev/null | grep -q "0.31.1"; then
-            echo "✓ Anchor 0.31.1 already installed"
-          else
-            echo "Installing Anchor 0.31.1 via AVM..."
-            avm install 0.31.1
-          fi
+          # Install Anchor 0.31.1 (always run to ensure it's available)
+          echo "Installing Anchor 0.31.1 via AVM..."
+          avm install 0.31.1 || echo "Install attempted (may already exist)"
 
-          # Use Anchor 0.31.1
-          avm use 0.31.1
-          anchor --version
+          # Manually set up anchor symlink to avoid interactive prompt
+          if [ -f "$HOME/.avm/bin/anchor-0.31.1" ]; then
+            echo "✓ Anchor 0.31.1 binary found, setting as active..."
+            ln -sf "$HOME/.avm/bin/anchor-0.31.1" "$HOME/.avm/bin/anchor"
+            anchor --version
+          else
+            echo "Error: Anchor 0.31.1 binary not found"
+            ls -la "$HOME/.avm/bin/" || true
+            exit 1
+          fi
 
       - name: Build Anchor program
         run: |
