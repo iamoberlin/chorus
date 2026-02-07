@@ -306,4 +306,95 @@ describe("chorus-prayers", () => {
       assert.include(err.message, "NotOpen");
     }
   });
+
+  it("Cannot cancel a claimed prayer (griefing protection)", async () => {
+    // Post prayer 2
+    const [prayerChainPda] = getPrayerChainPDA();
+    const [agentPda] = getAgentPDA(authority.publicKey);
+    const [prayerPda2] = getPrayerPDA(2);
+
+    await program.methods
+      .postPrayer(
+        { compute: {} },
+        "Run a backtest on 2Y ETH data",
+        new anchor.BN(0),
+        new anchor.BN(86400)
+      )
+      .accounts({
+        prayerChain: prayerChainPda,
+        requesterAgent: agentPda,
+        prayer: prayerPda2,
+        requester: authority.publicKey,
+        systemProgram: SystemProgram.programId,
+      })
+      .rpc();
+
+    // Agent 2 claims it
+    const [agent2Pda] = getAgentPDA(agent2.publicKey);
+    await program.methods
+      .claimPrayer()
+      .accounts({
+        prayer: prayerPda2,
+        claimerAgent: agent2Pda,
+        claimer: agent2.publicKey,
+      })
+      .signers([agent2])
+      .rpc();
+
+    // Try to cancel — should fail (claimed)
+    try {
+      await program.methods
+        .cancelPrayer()
+        .accounts({
+          prayer: prayerPda2,
+          requester: authority.publicKey,
+        })
+        .rpc();
+      assert.fail("Should have thrown");
+    } catch (err: any) {
+      assert.include(err.message, "CannotCancel");
+    }
+  });
+
+  it("Claimer can voluntarily unclaim", async () => {
+    const [prayerPda2] = getPrayerPDA(2);
+
+    await program.methods
+      .unclaimPrayer()
+      .accounts({
+        prayer: prayerPda2,
+        caller: agent2.publicKey,
+      })
+      .signers([agent2])
+      .rpc();
+
+    const prayer = await (program.account as any).prayer.fetch(prayerPda2);
+    assert.deepEqual(prayer.status, { open: {} });
+    assert.ok(prayer.claimer.equals(PublicKey.default));
+  });
+
+  it("Can close a cancelled prayer and reclaim rent", async () => {
+    const [prayerPda] = getPrayerPDA(1); // cancelled earlier
+
+    const balBefore = await provider.connection.getBalance(authority.publicKey);
+
+    await program.methods
+      .closePrayer()
+      .accounts({
+        prayer: prayerPda,
+        requester: authority.publicKey,
+      })
+      .rpc();
+
+    const balAfter = await provider.connection.getBalance(authority.publicKey);
+    assert.isAbove(balAfter, balBefore); // Got rent back
+
+    // Account should be gone
+    try {
+      await (program.account as any).prayer.fetch(prayerPda);
+      assert.fail("Account should be closed");
+    } catch (err: any) {
+      assert.include(err.message.toLowerCase(), "not exist");
+    }
+  });
 });

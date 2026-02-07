@@ -2,6 +2,9 @@ use anchor_lang::prelude::*;
 
 declare_id!("DZuj1ZcX4H6THBSgW4GhKA7SbZNXtPDE5xPkW2jN53PQ");
 
+/// Claim timeout: 1 hour. After this, anyone can unclaim a stale claim.
+const CLAIM_TIMEOUT_SECONDS: i64 = 3600;
+
 /// Prayer types
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq)]
 pub enum PrayerType {
@@ -70,6 +73,7 @@ pub struct Prayer {
     pub reward_lamports: u64,
     pub status: PrayerStatus,
     pub claimer: Pubkey,         // Pubkey::default() if none
+    pub claimed_at: i64,         // When claimed (for timeout enforcement)
     pub answer: String,          // max 512, empty if unanswered
     pub answer_hash: [u8; 32],   // SHA-256 of full answer
     pub created_at: i64,
@@ -81,8 +85,8 @@ pub struct Prayer {
 impl Prayer {
     pub const MAX_CONTENT: usize = 512;
     pub const MAX_ANSWER: usize = 512;
-    // 8 + 32 + 1 + (4+512) + 8 + 1 + 32 + (4+512) + 32 + 8 + 8 + 8 + 1
-    pub const INIT_SPACE: usize = 8 + 32 + 1 + 516 + 8 + 1 + 32 + 516 + 32 + 8 + 8 + 8 + 1;
+    // 8 + 32 + 1 + (4+512) + 8 + 1 + 32 + 8 + (4+512) + 32 + 8 + 8 + 8 + 1
+    pub const INIT_SPACE: usize = 8 + 32 + 1 + 516 + 8 + 1 + 32 + 8 + 516 + 32 + 8 + 8 + 8 + 1;
 }
 
 // ── Instructions ──────────────────────────────────────────
@@ -151,6 +155,7 @@ pub mod chorus_prayers {
         prayer.reward_lamports = reward_lamports;
         prayer.status = PrayerStatus::Open;
         prayer.claimer = Pubkey::default();
+        prayer.claimed_at = 0;
         prayer.answer = String::new();
         prayer.answer_hash = [0u8; 32];
         prayer.created_at = now;
@@ -195,6 +200,7 @@ pub mod chorus_prayers {
 
         prayer.status = PrayerStatus::Claimed;
         prayer.claimer = ctx.accounts.claimer.key();
+        prayer.claimed_at = now;
 
         Ok(())
     }
@@ -211,6 +217,7 @@ pub mod chorus_prayers {
         let now = Clock::get()?.unix_timestamp;
 
         require!(prayer.status == PrayerStatus::Claimed, PrayerError::NotClaimed);
+        require!(now < prayer.expires_at, PrayerError::Expired);
         require!(
             prayer.claimer == ctx.accounts.answerer.key(),
             PrayerError::NotClaimer
@@ -273,12 +280,14 @@ pub mod chorus_prayers {
         Ok(())
     }
 
-    /// Cancel an open prayer (requester only)
+    /// Cancel an OPEN prayer only (requester only).
+    /// Cannot cancel a claimed prayer — use unclaim or wait for timeout.
     pub fn cancel_prayer(ctx: Context<CancelPrayer>) -> Result<()> {
         let prayer = &mut ctx.accounts.prayer;
 
+        // FIX #1: Only allow cancel on Open prayers, not Claimed
         require!(
-            prayer.status == PrayerStatus::Open || prayer.status == PrayerStatus::Claimed,
+            prayer.status == PrayerStatus::Open,
             PrayerError::CannotCancel
         );
         require!(
@@ -306,19 +315,66 @@ pub mod chorus_prayers {
         Ok(())
     }
 
-    /// Unclaim a prayer (claimer abandons, returns to Open)
+    /// Unclaim a prayer. Two cases:
+    /// 1. Claimer voluntarily abandons
+    /// 2. Anyone can unclaim if claim has timed out (>1 hour)
     pub fn unclaim_prayer(ctx: Context<UnclaimPrayer>) -> Result<()> {
         let prayer = &mut ctx.accounts.prayer;
+        let now = Clock::get()?.unix_timestamp;
 
         require!(prayer.status == PrayerStatus::Claimed, PrayerError::NotClaimed);
+
+        let is_claimer = prayer.claimer == ctx.accounts.caller.key();
+        let claim_expired = now > prayer.claimed_at.checked_add(CLAIM_TIMEOUT_SECONDS).unwrap();
+
+        // FIX #2: Either the claimer unclaims, or anyone can unclaim after timeout
         require!(
-            prayer.claimer == ctx.accounts.claimer.key(),
+            is_claimer || claim_expired,
             PrayerError::NotClaimer
         );
 
         prayer.status = PrayerStatus::Open;
         prayer.claimer = Pubkey::default();
+        prayer.claimed_at = 0;
 
+        Ok(())
+    }
+
+    /// Close a resolved prayer and return rent to requester.
+    /// Only works on Confirmed, Cancelled, or Expired prayers.
+    pub fn close_prayer(ctx: Context<ClosePrayer>) -> Result<()> {
+        let prayer = &ctx.accounts.prayer;
+
+        let is_terminal = matches!(
+            prayer.status,
+            PrayerStatus::Confirmed | PrayerStatus::Cancelled
+        );
+
+        let now = Clock::get()?.unix_timestamp;
+        let is_expired = now > prayer.expires_at
+            && matches!(prayer.status, PrayerStatus::Open | PrayerStatus::Claimed);
+
+        require!(is_terminal || is_expired, PrayerError::CannotClose);
+
+        // If expired with bounty, return bounty to requester before closing
+        if is_expired && prayer.reward_lamports > 0 {
+            let prayer_info = ctx.accounts.prayer.to_account_info();
+            let requester_info = ctx.accounts.requester.to_account_info();
+
+            **prayer_info.try_borrow_mut_lamports()? = prayer_info
+                .lamports()
+                .checked_sub(prayer.reward_lamports)
+                .unwrap();
+            **requester_info.try_borrow_mut_lamports()? = requester_info
+                .lamports()
+                .checked_add(prayer.reward_lamports)
+                .unwrap();
+        }
+
+        // Anchor `close` constraint handles the rest:
+        // - Transfers remaining lamports (rent) to requester
+        // - Zeroes data
+        // - Assigns to system program
         Ok(())
     }
 }
@@ -397,9 +453,16 @@ pub struct PostPrayer<'info> {
     pub system_program: Program<'info, System>,
 }
 
+// FIX #4: PDA seed validation on all prayer mutation contexts
+
 #[derive(Accounts)]
+#[instruction()]
 pub struct ClaimPrayer<'info> {
-    #[account(mut)]
+    #[account(
+        mut,
+        seeds = [b"prayer", prayer.id.to_le_bytes().as_ref()],
+        bump = prayer.bump,
+    )]
     pub prayer: Account<'info, Prayer>,
 
     #[account(
@@ -412,6 +475,7 @@ pub struct ClaimPrayer<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction()]
 pub struct AnswerPrayer<'info> {
     #[account(
         mut,
@@ -420,7 +484,11 @@ pub struct AnswerPrayer<'info> {
     )]
     pub prayer_chain: Account<'info, PrayerChain>,
 
-    #[account(mut)]
+    #[account(
+        mut,
+        seeds = [b"prayer", prayer.id.to_le_bytes().as_ref()],
+        bump = prayer.bump,
+    )]
     pub prayer: Account<'info, Prayer>,
 
     #[account(
@@ -434,8 +502,14 @@ pub struct AnswerPrayer<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction()]
 pub struct ConfirmPrayer<'info> {
-    #[account(mut)]
+    #[account(
+        mut,
+        seeds = [b"prayer", prayer.id.to_le_bytes().as_ref()],
+        bump = prayer.bump,
+        has_one = requester @ PrayerError::NotRequester,
+    )]
     pub prayer: Account<'info, Prayer>,
 
     #[account(
@@ -445,7 +519,7 @@ pub struct ConfirmPrayer<'info> {
     )]
     pub answerer_agent: Account<'info, Agent>,
 
-    /// CHECK: This is the answerer's wallet, validated via prayer.claimer
+    /// CHECK: Validated via prayer.claimer constraint
     #[account(
         mut,
         constraint = answerer_wallet.key() == prayer.claimer @ PrayerError::NotClaimer
@@ -457,8 +531,14 @@ pub struct ConfirmPrayer<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction()]
 pub struct CancelPrayer<'info> {
-    #[account(mut)]
+    #[account(
+        mut,
+        seeds = [b"prayer", prayer.id.to_le_bytes().as_ref()],
+        bump = prayer.bump,
+        has_one = requester @ PrayerError::NotRequester,
+    )]
     pub prayer: Account<'info, Prayer>,
 
     #[account(mut)]
@@ -466,11 +546,34 @@ pub struct CancelPrayer<'info> {
 }
 
 #[derive(Accounts)]
+#[instruction()]
 pub struct UnclaimPrayer<'info> {
-    #[account(mut)]
+    #[account(
+        mut,
+        seeds = [b"prayer", prayer.id.to_le_bytes().as_ref()],
+        bump = prayer.bump,
+    )]
     pub prayer: Account<'info, Prayer>,
 
-    pub claimer: Signer<'info>,
+    /// Can be the claimer (voluntary) or anyone (after timeout)
+    pub caller: Signer<'info>,
+}
+
+// FIX #3: Close prayer instruction to reclaim rent
+#[derive(Accounts)]
+#[instruction()]
+pub struct ClosePrayer<'info> {
+    #[account(
+        mut,
+        seeds = [b"prayer", prayer.id.to_le_bytes().as_ref()],
+        bump = prayer.bump,
+        has_one = requester @ PrayerError::NotRequester,
+        close = requester,
+    )]
+    pub prayer: Account<'info, Prayer>,
+
+    #[account(mut)]
+    pub requester: Signer<'info>,
 }
 
 // ── Errors ────────────────────────────────────────────────
@@ -497,10 +600,12 @@ pub enum PrayerError {
     Expired,
     #[msg("Cannot claim your own prayer")]
     CannotClaimOwn,
-    #[msg("Only the claimer can answer")]
+    #[msg("Only the claimer can answer or unclaim")]
     NotClaimer,
-    #[msg("Only the requester can confirm or cancel")]
+    #[msg("Only the requester can confirm, cancel, or close")]
     NotRequester,
-    #[msg("Cannot cancel a fulfilled or confirmed prayer")]
+    #[msg("Can only cancel open prayers")]
     CannotCancel,
+    #[msg("Prayer must be confirmed, cancelled, or expired to close")]
+    CannotClose,
 }
