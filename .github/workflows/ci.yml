@@ -28,21 +28,36 @@ jobs:
 
       - name: Install OpenClaw
         run: |
-          curl -fsSL https://openclaw.ai/install.sh | bash
+          # Install OpenClaw (ignore exit code due to /dev/tty issue in CI)
+          curl -fsSL https://openclaw.ai/install.sh | bash || true
+
+          # Add both npm global and OpenClaw to PATH
+          echo "$HOME/.npm-global/bin" >> $GITHUB_PATH
           echo "$HOME/.openclaw/bin" >> $GITHUB_PATH
 
       - name: Verify OpenClaw installation
         run: |
-          export PATH="$HOME/.openclaw/bin:$PATH"
-          openclaw --version
+          # Reload PATH
+          export PATH="$HOME/.npm-global/bin:$HOME/.openclaw/bin:$PATH"
+
+          # Check if openclaw is accessible
+          which openclaw || echo "openclaw not in PATH, checking install location..."
+          ls -la $HOME/.npm-global/bin/ || echo "npm-global bin not found"
+
+          # Try to get version
+          openclaw --version || (echo "Trying alternative path..." && $HOME/.npm-global/bin/openclaw --version)
 
       - name: Install Chorus plugin from local directory
         run: |
-          export PATH="$HOME/.openclaw/bin:$PATH"
+          export PATH="$HOME/.npm-global/bin:$HOME/.openclaw/bin:$PATH"
+
           # Create a local link for testing
           mkdir -p $HOME/.openclaw/plugins
           ln -s $GITHUB_WORKSPACE $HOME/.openclaw/plugins/chorus
-          echo "Plugin linked for testing"
+
+          echo "✓ Plugin linked for testing"
+          echo "Plugin location: $HOME/.openclaw/plugins/chorus"
+          ls -la $HOME/.openclaw/plugins/
 
       - name: Verify plugin structure
         run: |
@@ -67,16 +82,7 @@ jobs:
           profile: minimal
           override: true
 
-      - name: Install Solana CLI
-        run: |
-          sh -c "$(curl -sSfL https://release.solana.com/stable/install)"
-          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
-
-      - name: Install Anchor CLI
-        run: |
-          cargo install --git https://github.com/coral-xyz/anchor --tag v0.30.1 anchor-cli --locked --force
-
-      - name: Cache Anchor and Cargo
+      - name: Cache Cargo and Anchor
         uses: actions/cache@v4
         with:
           path: |
@@ -89,9 +95,30 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-anchor-
 
+      - name: Install Solana CLI
+        run: |
+          sh -c "$(curl -sSfL https://release.solana.com/stable/install)"
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+
+      - name: Install Anchor CLI
+        run: |
+          # Check if anchor is already cached
+          if command -v anchor &> /dev/null; then
+            echo "✓ Anchor CLI found in cache"
+            anchor --version
+          else
+            echo "Installing Anchor CLI from source (this may take 10-15 minutes)..."
+            cargo install --git https://github.com/coral-xyz/anchor --tag v0.30.1 anchor-cli --locked --force
+          fi
+
       - name: Build Anchor program
         run: |
+          # Add Solana and Cargo to PATH
+          export PATH="$HOME/.local/share/solana/install/active_release/bin:$HOME/.cargo/bin:$PATH"
+
           if [ -f "Anchor.toml" ]; then
+            echo "Building Anchor program..."
+            anchor --version
             anchor build
             echo "✓ Anchor build successful"
           else
