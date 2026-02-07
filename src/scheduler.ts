@@ -14,6 +14,13 @@ import { join } from "path";
 import { homedir } from "os";
 import { spawn } from "child_process";
 
+// Type for the plugin API's runAgentTurn method
+interface AgentTurnResult {
+  text?: string;
+  payloads?: Array<{ text?: string; mediaUrl?: string | null }>;
+  meta?: { durationMs?: number };
+}
+
 // ── Message delivery ────────────────────────────────────────
 // Choirs that should always deliver their output to the human
 const ALWAYS_DELIVER_CHOIRS = new Set(["archangels"]);
@@ -181,6 +188,52 @@ export function createChoirScheduler(
   // Load persisted state instead of starting fresh
   const runState = loadRunState(log);
 
+  // CLI fallback for executing choirs when plugin API is unavailable
+  async function executeChoirViaCli(choir: Choir, prompt: string): Promise<string> {
+    const result = await new Promise<{ status: number | null; stdout: string; stderr: string }>((resolve) => {
+      const child = spawn('openclaw', [
+        'agent',
+        '--session-id', `chorus:${choir.id}`,
+        '--message', prompt,
+        '--json',
+      ], { stdio: ['pipe', 'pipe', 'pipe'] });
+
+      let stdout = '';
+      let stderr = '';
+      const maxBuffer = 1024 * 1024;
+      child.stdout.on('data', (d: Buffer) => { if (stdout.length < maxBuffer) stdout += d.toString(); });
+      child.stderr.on('data', (d: Buffer) => { if (stderr.length < maxBuffer) stderr += d.toString(); });
+
+      const timer = setTimeout(() => { child.kill('SIGTERM'); }, 300000); // 5 min
+      child.on('close', (code) => { clearTimeout(timer); resolve({ status: code, stdout, stderr }); });
+      child.on('error', (err) => { clearTimeout(timer); resolve({ status: 1, stdout: '', stderr: String(err) }); });
+    });
+
+    if (result.status === 0 && result.stdout) {
+      const stdout = result.stdout;
+      // Find the last top-level JSON object (skip plugin log noise)
+      for (let i = stdout.length - 1; i >= 0; i--) {
+        if (stdout[i] === '{') {
+          try {
+            const parsed = JSON.parse(stdout.slice(i));
+            return parsed.response ||
+              parsed.content ||
+              parsed.result?.payloads?.slice(-1)?.[0]?.text ||
+              parsed.result?.text ||
+              (typeof parsed.result === "string" ? parsed.result : null) ||
+              stdout;
+          } catch { /* keep searching */ }
+        }
+      }
+      return stdout;
+    }
+
+    if (result.stderr) {
+      log.warn(`[chorus] ${choir.name} CLI stderr: ${result.stderr.slice(0, 200)}`);
+    }
+    return "(no response)";
+  }
+
   // Build the prompt with context injected
   function buildPrompt(choir: Choir): string {
     let prompt = choir.prompt;
@@ -196,7 +249,7 @@ export function createChoirScheduler(
     return prompt;
   }
 
-  // Execute a choir using openclaw agent CLI
+  // Execute a choir using the plugin API (fast, in-process) with CLI fallback
   async function executeChoir(choir: Choir): Promise<void> {
     const state = runState.get(choir.id) || { runCount: 0 };
     const startTime = Date.now();
@@ -213,69 +266,40 @@ export function createChoirScheduler(
 
     try {
       const prompt = buildPrompt(choir);
-
-      // Use openclaw agent CLI (async to avoid blocking event loop)
-      const result = await new Promise<{ status: number | null; stdout: string; stderr: string }>((resolve) => {
-        const child = spawn('openclaw', [
-          'agent',
-          '--session-id', `chorus:${choir.id}`,
-          '--message', prompt,
-          '--json',
-        ], { stdio: ['pipe', 'pipe', 'pipe'] });
-
-        let stdout = '';
-        let stderr = '';
-        const maxBuffer = 1024 * 1024;
-        child.stdout.on('data', (d: Buffer) => { if (stdout.length < maxBuffer) stdout += d.toString(); });
-        child.stderr.on('data', (d: Buffer) => { if (stderr.length < maxBuffer) stderr += d.toString(); });
-
-        const timer = setTimeout(() => { child.kill('SIGTERM'); }, 300000); // 5 min
-        child.on('close', (code) => { clearTimeout(timer); resolve({ status: code, stdout, stderr }); });
-        child.on('error', (err) => { clearTimeout(timer); resolve({ status: 1, stdout: '', stderr: String(err) }); });
-      });
-
       let output = "(no response)";
 
-      if (result.status === 0 && result.stdout) {
-        // Extract JSON from output (may have plugin logs before it)
-        const stdout = result.stdout;
-        // Find the last top-level JSON object (skip plugin log noise before it)
-        let jsonStart = -1;
-        for (let i = stdout.length - 1; i >= 0; i--) {
-          if (stdout[i] === '{') {
-            // Try to parse from this position
-            try {
-              JSON.parse(stdout.slice(i));
-              jsonStart = i;
-              break;
-            } catch {
-              // Not valid JSON from here, keep searching
-            }
+      // Prefer plugin API (in-process, no CLI spawn overhead)
+      if (typeof api.runAgentTurn === 'function') {
+        try {
+          const result: AgentTurnResult = await api.runAgentTurn({
+            sessionLabel: `chorus:${choir.id}`,
+            message: prompt,
+            isolated: true,
+            timeoutSeconds: 300,
+          });
+
+          // Extract text from payloads — concatenate all payload texts
+          const payloadTexts = (result?.payloads || [])
+            .map((p: any) => p?.text || '')
+            .filter((t: string) => t.length > 0);
+
+          if (payloadTexts.length > 0) {
+            // Use the last substantive payload (earlier ones are often thinking-out-loud)
+            output = payloadTexts[payloadTexts.length - 1];
+          } else if (result?.text) {
+            output = result.text;
           }
+        } catch (apiErr) {
+          log.warn(`[chorus] API runAgentTurn failed for ${choir.name}, falling back to CLI: ${apiErr}`);
+          output = await executeChoirViaCli(choir, prompt);
         }
-        if (jsonStart >= 0) {
-          try {
-            const parsed = JSON.parse(stdout.slice(jsonStart));
-            // Handle multiple response formats from openclaw agent
-            output =
-              parsed.response ||
-              parsed.content ||
-              (parsed.result?.payloads?.[0]?.text) ||
-              (parsed.result?.text) ||
-              (typeof parsed.result === "string" ? parsed.result : null) ||
-              stdout;
-          } catch {
-            output = stdout;
-          }
-        } else {
-          output = stdout;
-        }
-      } else if (result.stderr) {
-        log.warn(`[chorus] ${choir.name} stderr: ${result.stderr.slice(0, 200)}`);
+      } else {
+        // Fallback: spawn CLI process
+        output = await executeChoirViaCli(choir, prompt);
       }
 
       execution.durationMs = Date.now() - startTime;
-      execution.success = result.status === 0;
+      execution.success = output !== "(no response)";
       execution.outputLength = output.length;
       execution.tokensUsed = estimateTokens(output);
 
