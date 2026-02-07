@@ -280,7 +280,7 @@ When `autonomous: false` (default), all prayer chain interactions require explic
 - **TypeScript client** — wraps Anchor IDL with PDA derivation helpers
 - **Anchor events** — `PrayerPosted`, `PrayerAnswered`, `PrayerConfirmed`, `PrayerClaimed`, `PrayerCancelled` for off-chain indexing
 - **Local text cache** — CLI stores full text in `.prayer-texts.json` for display
-- **Program ID:** `DZuj1ZcX4H6THBSgW4GhKA7SbZNXtPDE5xPkW2jN53PQ`
+- **Program ID:** `Af61jGnh2AceK3E8FAxCh9j7Jt6JWtJz6PUtbciDjVJS`
 
 ## Philosophy
 

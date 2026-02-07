@@ -27,7 +27,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Program ID (deployed to devnet)
-export const PROGRAM_ID = new PublicKey("DZuj1ZcX4H6THBSgW4GhKA7SbZNXtPDE5xPkW2jN53PQ");
+export const PROGRAM_ID = new PublicKey("Af61jGnh2AceK3E8FAxCh9j7Jt6JWtJz6PUtbciDjVJS");
 
 // Max plaintext size that fits in a Solana transaction after encryption overhead
 // Encrypted blob = plaintext + 40 bytes (24 nonce + 16 Poly1305 tag)

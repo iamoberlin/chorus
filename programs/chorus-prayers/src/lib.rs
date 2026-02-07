@@ -1,6 +1,6 @@
 use anchor_lang::prelude::*;
 
-declare_id!("DZuj1ZcX4H6THBSgW4GhKA7SbZNXtPDE5xPkW2jN53PQ");
+declare_id!("Af61jGnh2AceK3E8FAxCh9j7Jt6JWtJz6PUtbciDjVJS");
 
 /// Claim timeout: 1 hour. After this, anyone can unclaim a stale claim.
 const CLAIM_TIMEOUT_SECONDS: i64 = 3600;
