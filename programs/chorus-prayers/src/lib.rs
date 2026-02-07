@@ -106,7 +106,7 @@ pub struct ContentDelivered {
     pub prayer_id: u64,
     pub requester: Pubkey,
     pub claimer: Pubkey,
-    pub encrypted_content: Vec<u8>,  // XChaCha20-Poly1305 encrypted (nonce || ciphertext || tag)
+    pub encrypted_content: Vec<u8>,  // XSalsa20-Poly1305 encrypted (nonce || ciphertext || tag)
 }
 
 #[event]
@@ -114,7 +114,7 @@ pub struct PrayerAnswered {
     pub id: u64,
     pub answerer: Pubkey,
     pub answer_hash: [u8; 32],           // Hash only — no plaintext
-    pub encrypted_answer: Vec<u8>,       // XChaCha20-Poly1305 encrypted
+    pub encrypted_answer: Vec<u8>,       // XSalsa20-Poly1305 encrypted
 }
 
 #[event]
@@ -163,6 +163,7 @@ pub mod chorus_prayers {
     ) -> Result<()> {
         require!(name.len() <= Agent::MAX_NAME, PrayerError::NameTooLong);
         require!(skills.len() <= Agent::MAX_SKILLS, PrayerError::SkillsTooLong);
+        require!(encryption_key != [0u8; 32], PrayerError::InvalidEncryptionKey);
 
         let agent = &mut ctx.accounts.agent;
         agent.wallet = ctx.accounts.wallet.key();
@@ -713,4 +714,6 @@ pub enum PrayerError {
     CannotCancel,
     #[msg("Prayer must be confirmed, cancelled, or expired to close")]
     CannotClose,
+    #[msg("Encryption key cannot be all zeros")]
+    InvalidEncryptionKey,
 }

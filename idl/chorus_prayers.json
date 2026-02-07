@@ -923,6 +923,11 @@
       "code": 6011,
       "name": "CannotClose",
       "msg": "Prayer must be confirmed, cancelled, or expired to close"
+    },
+    {
+      "code": 6012,
+      "name": "InvalidEncryptionKey",
+      "msg": "Encryption key cannot be all zeros"
     }
   ],
   "types": [
