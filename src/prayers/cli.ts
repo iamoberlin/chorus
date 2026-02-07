@@ -1,330 +1,410 @@
-#!/usr/bin/env npx ts-node
+#!/usr/bin/env npx tsx
 /**
- * Prayer Requests - CLI
- * Simple command-line interface for testing
+ * Prayer Chain — On-Chain CLI
+ * 
+ * Human-in-the-loop commands for the Solana prayer chain.
+ * Choirs suggest prayers; humans approve and send them on-chain.
  * 
  * Usage:
- *   npx ts-node cli.ts pray "Need research on X" --category research
- *   npx ts-node cli.ts list [--status open] [--category research]
- *   npx ts-node cli.ts show <id>
- *   npx ts-node cli.ts accept <id>
- *   npx ts-node cli.ts complete <id> "Here's the result..."
- *   npx ts-node cli.ts confirm <id> [--reject]
- *   npx ts-node cli.ts reputation [agentId]
- *   npx ts-node cli.ts peers
- *   npx ts-node cli.ts add-peer <id> <endpoint>
+ *   chorus pray post "What is the current SOFR rate?" --type knowledge --bounty 0.01
+ *   chorus pray list
+ *   chorus pray show <id>
+ *   chorus pray claim <id>
+ *   chorus pray answer <id> "SOFR is 4.55%, down 2bps this week"
+ *   chorus pray confirm <id>
+ *   chorus pray cancel <id>
+ *   chorus pray agent                    # Show my on-chain agent
+ *   chorus pray register "oberlin" "macro analysis, research"
+ *   chorus pray chain                    # Show prayer chain stats
  */
 
-import * as prayers from './prayers';
-import * as store from './store';
-import type { PrayerCategory } from './types';
+import { ChorusPrayerClient, PrayerType, getPrayerChainPDA, getAgentPDA, getPrayerPDA } from "./solana.js";
+import { PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
+
+// Default to localhost; override with SOLANA_RPC_URL env
+const RPC_URL = process.env.SOLANA_RPC_URL || "http://localhost:8899";
+
+function getClient(): ChorusPrayerClient {
+  return ChorusPrayerClient.fromDefaultKeypair(RPC_URL);
+}
+
+function parsePrayerType(t: string): { [key: string]: object } {
+  const types: Record<string, object> = {
+    knowledge: { knowledge: {} },
+    compute: { compute: {} },
+    review: { review: {} },
+    signal: { signal: {} },
+    collaboration: { collaboration: {} },
+  };
+  const normalized = t.toLowerCase();
+  if (!types[normalized]) {
+    throw new Error(`Unknown prayer type: ${t}. Valid: ${Object.keys(types).join(", ")}`);
+  }
+  return types[normalized];
+}
+
+function formatStatus(status: any): string {
+  if (typeof status === "object") {
+    return Object.keys(status)[0].toUpperCase();
+  }
+  return String(status).toUpperCase();
+}
+
+function formatType(prayerType: any): string {
+  if (typeof prayerType === "object") {
+    return Object.keys(prayerType)[0];
+  }
+  return String(prayerType);
+}
+
+function formatTime(ts: number): string {
+  if (!ts) return "—";
+  return new Date(ts * 1000).toLocaleString();
+}
+
+function formatSOL(lamports: number): string {
+  if (!lamports) return "none";
+  return `${(lamports / LAMPORTS_PER_SOL).toFixed(4)} SOL`;
+}
+
+function shortKey(key: PublicKey): string {
+  const s = key.toBase58();
+  if (s === "11111111111111111111111111111111") return "(none)";
+  return `${s.slice(0, 4)}...${s.slice(-4)}`;
+}
 
 const args = process.argv.slice(2);
 const command = args[0];
 
-function formatDate(ts: number): string {
-  return new Date(ts).toLocaleString();
-}
-
-function formatRequest(r: ReturnType<typeof prayers.getRequest>) {
-  if (!r) return 'Not found';
-  const { request: req, responses } = r;
-  
-  return `
-ID:       ${req.id}
-From:     ${req.from.name || req.from.id}
-Type:     ${req.type}
-Category: ${req.category}
-Status:   ${req.status}
-Created:  ${formatDate(req.createdAt)}
-${req.expiresAt ? `Expires:  ${formatDate(req.expiresAt)}` : ''}
-${req.deadline ? `Deadline: ${formatDate(req.deadline)}` : ''}
-${req.reward ? `Reward:   ${req.reward.amount} ${req.reward.token}` : ''}
-${req.acceptedBy ? `Accepted: ${req.acceptedBy.name || req.acceptedBy.id}` : ''}
-
-Title:
-  ${req.title}
-
-Content:
-  ${req.content}
-
-Responses: ${responses.length}
-${responses.map(r => `  - [${r.action}] ${r.from.name || r.from.id} @ ${formatDate(r.createdAt)}${r.result ? `\n    Result: ${r.result.slice(0, 100)}...` : ''}`).join('\n')}
-`.trim();
-}
-
 async function main() {
-  // Set agent identity from env
-  if (process.env.AGENT_ID) {
-    prayers.setSelf({
-      id: process.env.AGENT_ID,
-      address: process.env.AGENT_ADDRESS || '0x0',
-      name: process.env.AGENT_NAME,
-      endpoint: process.env.AGENT_ENDPOINT
-    });
-  }
-  
+  const client = getClient();
+
   switch (command) {
-    case 'whoami': {
-      const self = prayers.getSelf();
-      console.log(`ID:      ${self.id}`);
-      console.log(`Name:    ${self.name}`);
-      console.log(`Address: ${self.address}`);
+    case "chain":
+    case "status": {
+      const chain = await client.getPrayerChain();
+      if (!chain) {
+        console.log("\n⛓️  Prayer Chain not initialized.");
+        console.log("   Run: chorus pray init\n");
+        return;
+      }
+      console.log("");
+      console.log("⛓️  Prayer Chain");
+      console.log("═".repeat(40));
+      console.log(`  Authority:      ${shortKey(chain.authority)}`);
+      console.log(`  Total Prayers:  ${chain.totalPrayers}`);
+      console.log(`  Total Answered: ${chain.totalAnswered}`);
+      console.log(`  Total Agents:   ${chain.totalAgents}`);
+      console.log(`  RPC:            ${RPC_URL}`);
+      console.log("");
       break;
     }
-    
-    case 'pray': {
+
+    case "init": {
+      console.log("\n⛓️  Initializing Prayer Chain...");
+      try {
+        const tx = await client.initialize();
+        console.log(`  ✓ Initialized (tx: ${tx.slice(0, 16)}...)`);
+      } catch (err: any) {
+        if (err.message?.includes("already in use")) {
+          console.log("  Already initialized.");
+        } else {
+          console.error(`  ✗ ${err.message}`);
+        }
+      }
+      console.log("");
+      break;
+    }
+
+    case "register": {
+      const name = args[1];
+      const skills = args[2];
+      if (!name || !skills) {
+        console.error('Usage: register "<name>" "<skills>"');
+        process.exit(1);
+      }
+      console.log(`\n🤖 Registering agent "${name}"...`);
+      try {
+        const tx = await client.registerAgent(name, skills);
+        console.log(`  ✓ Registered (tx: ${tx.slice(0, 16)}...)`);
+      } catch (err: any) {
+        if (err.message?.includes("already in use")) {
+          console.log("  Already registered.");
+        } else {
+          console.error(`  ✗ ${err.message}`);
+        }
+      }
+      console.log("");
+      break;
+    }
+
+    case "agent": {
+      const wallet = args[1] ? new PublicKey(args[1]) : client.wallet;
+      const agent = await client.getAgent(wallet);
+      if (!agent) {
+        console.log("\n🤖 Agent not registered.");
+        console.log('   Run: chorus pray register "<name>" "<skills>"\n');
+        return;
+      }
+      console.log("");
+      console.log("🤖 Agent");
+      console.log("═".repeat(40));
+      console.log(`  Wallet:          ${shortKey(agent.wallet)}`);
+      console.log(`  Name:            ${agent.name}`);
+      console.log(`  Skills:          ${agent.skills}`);
+      console.log(`  Reputation:      ${agent.reputation}`);
+      console.log(`  Prayers Posted:  ${agent.prayersPosted}`);
+      console.log(`  Prayers Answered: ${agent.prayersAnswered}`);
+      console.log(`  Prayers Confirmed: ${agent.prayersConfirmed}`);
+      console.log(`  Registered:      ${formatTime(agent.registeredAt)}`);
+      console.log("");
+      break;
+    }
+
+    case "post": {
       const content = args[1];
       if (!content) {
-        console.error('Usage: pray "<content>" [--category <cat>] [--title <title>]');
+        console.error('Usage: post "<content>" [--type knowledge] [--bounty 0.01] [--ttl 86400]');
         process.exit(1);
       }
-      
-      const categoryIdx = args.indexOf('--category');
-      const titleIdx = args.indexOf('--title');
-      
-      const category = (categoryIdx > -1 ? args[categoryIdx + 1] : 'other') as PrayerCategory;
-      const title = titleIdx > -1 ? args[titleIdx + 1] : content.slice(0, 50);
-      
-      const request = prayers.createRequest({
-        type: 'ask',
-        category,
-        title,
-        content,
-        expiresIn: 24 * 60 * 60 * 1000 // 24 hours
-      });
-      
-      console.log(`Created prayer request: ${request.id}`);
-      console.log(`Title: ${request.title}`);
-      console.log(`Status: ${request.status}`);
+
+      const typeIdx = args.indexOf("--type");
+      const bountyIdx = args.indexOf("--bounty");
+      const ttlIdx = args.indexOf("--ttl");
+
+      const prayerType = typeIdx > -1 ? args[typeIdx + 1] : "knowledge";
+      const bountySOL = bountyIdx > -1 ? parseFloat(args[bountyIdx + 1]) : 0;
+      const ttl = ttlIdx > -1 ? parseInt(args[ttlIdx + 1]) : 86400;
+      const bountyLamports = Math.round(bountySOL * LAMPORTS_PER_SOL);
+
+      console.log("");
+      console.log("🙏 Posting prayer...");
+      console.log(`  Type:    ${prayerType}`);
+      console.log(`  Content: ${content.slice(0, 80)}${content.length > 80 ? "..." : ""}`);
+      console.log(`  Bounty:  ${bountySOL > 0 ? `${bountySOL} SOL` : "none"}`);
+      console.log(`  TTL:     ${ttl}s (${(ttl / 3600).toFixed(1)}h)`);
+
+      try {
+        const { tx, prayerId } = await client.postPrayer(
+          prayerType as unknown as PrayerType,
+          content,
+          bountyLamports,
+          ttl
+        );
+        console.log(`  ✓ Prayer #${prayerId} posted (tx: ${tx.slice(0, 16)}...)`);
+      } catch (err: any) {
+        console.error(`  ✗ ${err.message}`);
+      }
+      console.log("");
       break;
     }
-    
-    case 'offer': {
-      const content = args[1];
-      if (!content) {
-        console.error('Usage: offer "<what you offer>" [--category <cat>]');
-        process.exit(1);
+
+    case "list": {
+      const chain = await client.getPrayerChain();
+      if (!chain) {
+        console.log("\n⛓️  Prayer Chain not initialized.\n");
+        return;
       }
-      
-      const categoryIdx = args.indexOf('--category');
-      const category = (categoryIdx > -1 ? args[categoryIdx + 1] : 'other') as PrayerCategory;
-      
-      const request = prayers.createRequest({
-        type: 'offer',
-        category,
-        title: content.slice(0, 50),
-        content
-      });
-      
-      console.log(`Created offer: ${request.id}`);
+
+      const total = chain.totalPrayers;
+      if (total === 0) {
+        console.log("\n🙏 No prayers yet.\n");
+        return;
+      }
+
+      const statusFilter = args.indexOf("--status") > -1 ? args[args.indexOf("--status") + 1]?.toLowerCase() : null;
+      const limit = args.indexOf("--limit") > -1 ? parseInt(args[args.indexOf("--limit") + 1]) : 20;
+
+      console.log("");
+      console.log(`🙏 Prayers (${total} total)`);
+      console.log("═".repeat(60));
+
+      let shown = 0;
+      for (let i = total - 1; i >= 0 && shown < limit; i--) {
+        const prayer = await client.getPrayer(i);
+        if (!prayer) continue;
+
+        const status = formatStatus(prayer.status);
+        if (statusFilter && status.toLowerCase() !== statusFilter) continue;
+
+        const type = formatType(prayer.prayerType);
+        const bounty = prayer.rewardLamports > 0 ? ` 💰${formatSOL(prayer.rewardLamports)}` : "";
+        const statusIcon = {
+          OPEN: "🟢",
+          CLAIMED: "🟡",
+          FULFILLED: "🔵",
+          CONFIRMED: "✅",
+          EXPIRED: "⏰",
+          CANCELLED: "❌",
+        }[status] || "❓";
+
+        console.log(`  ${statusIcon} #${prayer.id} [${status}] (${type})${bounty}`);
+        console.log(`     ${prayer.content.slice(0, 70)}${prayer.content.length > 70 ? "..." : ""}`);
+        console.log(`     From: ${shortKey(prayer.requester)} | Created: ${formatTime(prayer.createdAt)}`);
+        if (prayer.answer) {
+          console.log(`     Answer: ${prayer.answer.slice(0, 70)}${prayer.answer.length > 70 ? "..." : ""}`);
+        }
+        shown++;
+      }
+      console.log("");
       break;
     }
-    
-    case 'list': {
-      const statusIdx = args.indexOf('--status');
-      const categoryIdx = args.indexOf('--category');
-      const mineFlag = args.includes('--mine');
-      
-      const requests = prayers.listRequests({
-        status: statusIdx > -1 ? args[statusIdx + 1] as any : undefined,
-        category: categoryIdx > -1 ? args[categoryIdx + 1] as PrayerCategory : undefined,
-        mine: mineFlag
-      });
-      
-      if (requests.length === 0) {
-        console.log('No prayer requests found.');
-        break;
+
+    case "show": {
+      const id = parseInt(args[1]);
+      if (isNaN(id)) {
+        console.error("Usage: show <prayer-id>");
+        process.exit(1);
       }
-      
-      console.log(`Found ${requests.length} request(s):\n`);
-      for (const req of requests) {
-        console.log(`[${req.status.toUpperCase()}] ${req.id.slice(0, 8)}...`);
-        console.log(`  ${req.type === 'ask' ? '🙏' : '✋'} ${req.title}`);
-        console.log(`  From: ${req.from.name || req.from.id} | Category: ${req.category}`);
-        console.log(`  Created: ${formatDate(req.createdAt)}`);
-        console.log();
+
+      const prayer = await client.getPrayer(id);
+      if (!prayer) {
+        console.error(`\n✗ Prayer #${id} not found\n`);
+        return;
       }
+
+      console.log("");
+      console.log(`🙏 Prayer #${prayer.id}`);
+      console.log("═".repeat(50));
+      console.log(`  Status:     ${formatStatus(prayer.status)}`);
+      console.log(`  Type:       ${formatType(prayer.prayerType)}`);
+      console.log(`  Requester:  ${shortKey(prayer.requester)}`);
+      console.log(`  Bounty:     ${formatSOL(prayer.rewardLamports)}`);
+      console.log(`  Created:    ${formatTime(prayer.createdAt)}`);
+      console.log(`  Expires:    ${formatTime(prayer.expiresAt)}`);
+      console.log("");
+      console.log("  Content:");
+      console.log(`    ${prayer.content}`);
+      if (prayer.claimer.toBase58() !== "11111111111111111111111111111111") {
+        console.log("");
+        console.log(`  Claimer:    ${shortKey(prayer.claimer)}`);
+        console.log(`  Claimed at: ${formatTime(prayer.claimedAt)}`);
+      }
+      if (prayer.answer) {
+        console.log("");
+        console.log("  Answer:");
+        console.log(`    ${prayer.answer}`);
+        console.log(`  Fulfilled:  ${formatTime(prayer.fulfilledAt)}`);
+      }
+      console.log("");
       break;
     }
-    
-    case 'show': {
-      const id = args[1];
-      if (!id) {
-        console.error('Usage: show <request-id>');
+
+    case "claim": {
+      const id = parseInt(args[1]);
+      if (isNaN(id)) {
+        console.error("Usage: claim <prayer-id>");
         process.exit(1);
       }
-      
-      // Support partial ID match
-      const all = prayers.listRequests({});
-      const match = all.find(r => r.id.startsWith(id));
-      
-      if (!match) {
-        console.error('Request not found');
-        process.exit(1);
+      console.log(`\n🤝 Claiming prayer #${id}...`);
+      try {
+        const tx = await client.claimPrayer(id);
+        console.log(`  ✓ Claimed (tx: ${tx.slice(0, 16)}...)`);
+      } catch (err: any) {
+        console.error(`  ✗ ${err.message}`);
       }
-      
-      console.log(formatRequest(prayers.getRequest(match.id)));
+      console.log("");
       break;
     }
-    
-    case 'accept': {
-      const id = args[1];
-      if (!id) {
-        console.error('Usage: accept <request-id>');
+
+    case "answer": {
+      const id = parseInt(args[1]);
+      const answer = args[2];
+      if (isNaN(id) || !answer) {
+        console.error('Usage: answer <prayer-id> "<answer>"');
         process.exit(1);
       }
-      
-      const all = prayers.listRequests({});
-      const match = all.find(r => r.id.startsWith(id));
-      
-      if (!match) {
-        console.error('Request not found');
-        process.exit(1);
+      console.log(`\n💬 Answering prayer #${id}...`);
+      console.log(`  Answer: ${answer.slice(0, 80)}${answer.length > 80 ? "..." : ""}`);
+      try {
+        const tx = await client.answerPrayer(id, answer);
+        console.log(`  ✓ Answered (tx: ${tx.slice(0, 16)}...)`);
+      } catch (err: any) {
+        console.error(`  ✗ ${err.message}`);
       }
-      
-      const response = prayers.acceptRequest(match.id);
-      if (response) {
-        console.log(`Accepted request: ${match.id}`);
-        console.log(`Response ID: ${response.id}`);
-      } else {
-        console.error('Could not accept request (may be expired or already accepted)');
-        process.exit(1);
-      }
+      console.log("");
       break;
     }
-    
-    case 'complete': {
-      const id = args[1];
-      const result = args[2];
-      if (!id || !result) {
-        console.error('Usage: complete <request-id> "<result>"');
+
+    case "confirm": {
+      const id = parseInt(args[1]);
+      if (isNaN(id)) {
+        console.error("Usage: confirm <prayer-id>");
         process.exit(1);
       }
-      
-      const all = prayers.listRequests({});
-      const match = all.find(r => r.id.startsWith(id));
-      
-      if (!match) {
-        console.error('Request not found');
-        process.exit(1);
+      console.log(`\n✅ Confirming prayer #${id}...`);
+      try {
+        const tx = await client.confirmPrayer(id);
+        console.log(`  ✓ Confirmed (tx: ${tx.slice(0, 16)}...)`);
+      } catch (err: any) {
+        console.error(`  ✗ ${err.message}`);
       }
-      
-      const response = prayers.completeRequest(match.id, result);
-      if (response) {
-        console.log(`Marked complete: ${match.id}`);
-        console.log(`Awaiting confirmation from requester`);
-      } else {
-        console.error('Could not complete (not accepted by you?)');
-        process.exit(1);
-      }
+      console.log("");
       break;
     }
-    
-    case 'confirm': {
-      const id = args[1];
-      const reject = args.includes('--reject');
-      
-      if (!id) {
-        console.error('Usage: confirm <request-id> [--reject]');
+
+    case "cancel": {
+      const id = parseInt(args[1]);
+      if (isNaN(id)) {
+        console.error("Usage: cancel <prayer-id>");
         process.exit(1);
       }
-      
-      const all = prayers.listRequests({});
-      const match = all.find(r => r.id.startsWith(id));
-      
-      if (!match) {
-        console.error('Request not found');
-        process.exit(1);
+      console.log(`\n❌ Cancelling prayer #${id}...`);
+      try {
+        const tx = await client.cancelPrayer(id);
+        console.log(`  ✓ Cancelled (tx: ${tx.slice(0, 16)}...)`);
+      } catch (err: any) {
+        console.error(`  ✗ ${err.message}`);
       }
-      
-      const detail = prayers.getRequest(match.id);
-      const completion = detail?.responses.find(r => r.action === 'complete');
-      
-      if (!completion) {
-        console.error('No completion to confirm');
-        process.exit(1);
-      }
-      
-      const confirmation = prayers.confirmCompletion(match.id, completion.id, !reject);
-      if (confirmation) {
-        console.log(reject ? 'Disputed completion' : 'Confirmed completion');
-        console.log(`Request status: ${reject ? 'disputed' : 'completed'}`);
-      } else {
-        console.error('Could not confirm (not your request?)');
-        process.exit(1);
-      }
+      console.log("");
       break;
     }
-    
-    case 'reputation': {
-      const agentId = args[1];
-      const rep = prayers.getReputation(agentId);
-      
-      console.log(`Agent: ${rep.agentId}`);
-      console.log(`Fulfilled: ${rep.fulfilled}`);
-      console.log(`Requested: ${rep.requested}`);
-      console.log(`Disputed:  ${rep.disputed}`);
-      console.log(`Last Active: ${rep.lastActive ? formatDate(rep.lastActive) : 'Never'}`);
-      break;
-    }
-    
-    case 'peers': {
-      const peers = store.getPeers();
-      if (peers.length === 0) {
-        console.log('No peers configured');
-        break;
-      }
-      
-      console.log(`Known peers (${peers.length}):\n`);
-      for (const peer of peers) {
-        console.log(`  ${peer.name || peer.id}`);
-        console.log(`    ID: ${peer.id}`);
-        console.log(`    Endpoint: ${peer.endpoint || 'none'}`);
-        console.log();
-      }
-      break;
-    }
-    
-    case 'add-peer': {
-      const id = args[1];
-      const endpoint = args[2];
-      const name = args[3];
-      
-      if (!id) {
-        console.error('Usage: add-peer <id> [endpoint] [name]');
+
+    case "unclaim": {
+      const id = parseInt(args[1]);
+      if (isNaN(id)) {
+        console.error("Usage: unclaim <prayer-id>");
         process.exit(1);
       }
-      
-      store.addPeer({ id, endpoint, address: '0x0', name });
-      console.log(`Added peer: ${name || id}`);
+      console.log(`\n🔓 Unclaiming prayer #${id}...`);
+      try {
+        const tx = await client.unclaimPrayer(id);
+        console.log(`  ✓ Unclaimed (tx: ${tx.slice(0, 16)}...)`);
+      } catch (err: any) {
+        console.error(`  ✗ ${err.message}`);
+      }
+      console.log("");
       break;
     }
-    
+
     default:
       console.log(`
-Prayer Requests CLI
+🙏 Prayer Chain CLI (On-Chain)
 
 Commands:
-  whoami                          Show current agent identity
-  pray "<content>"                Create a prayer request (ask)
-  offer "<content>"               Create an offer
-  list [--status X] [--mine]      List requests
-  show <id>                       Show request details
-  accept <id>                     Accept a request
-  complete <id> "<result>"        Mark request complete
-  confirm <id> [--reject]         Confirm/reject completion
-  reputation [agentId]            Show reputation
-  peers                           List known peers
-  add-peer <id> [endpoint] [name] Add a peer
+  chain                           Show prayer chain stats
+  init                            Initialize the prayer chain
+  register "<name>" "<skills>"    Register as an agent
+  agent [wallet]                  Show agent profile
+  post "<content>" [options]      Post a prayer
+    --type <type>                   knowledge|compute|review|signal|collaboration
+    --bounty <SOL>                  SOL bounty (e.g. 0.01)
+    --ttl <seconds>                 Time to live (default 86400)
+  list [--status <s>] [--limit <n>]  List prayers
+  show <id>                       Show prayer details
+  claim <id>                      Claim a prayer
+  answer <id> "<answer>"          Answer a claimed prayer
+  confirm <id>                    Confirm an answer (requester only)
+  cancel <id>                     Cancel an open prayer
+  unclaim <id>                    Unclaim a prayer
 
 Environment:
-  AGENT_ID       Your agent ID
-  AGENT_NAME     Your agent name
-  AGENT_ADDRESS  Your signing address
-  AGENT_ENDPOINT Your gateway URL
+  SOLANA_RPC_URL                  RPC endpoint (default: http://localhost:8899)
       `.trim());
   }
 }
 
-main().catch(console.error);
+main().catch((err) => {
+  console.error(`\n✗ ${err.message}\n`);
+  process.exit(1);
+});

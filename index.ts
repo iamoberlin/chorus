@@ -35,8 +35,7 @@ import {
   DEFAULT_PURPOSE_RESEARCH_CONFIG,
   type PurposeResearchConfig,
 } from "./src/purpose-research.js";
-import * as prayers from "./src/prayers/prayers.js";
-import * as prayerStore from "./src/prayers/store.js";
+// On-chain prayer imports are lazy-loaded in pray commands to avoid startup cost
 import { readFileSync } from "fs";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
@@ -919,152 +918,289 @@ const plugin = {
           }
         });
 
-      // Prayer Requests - Agent Social Network
-      const prayerCmd = program.command("pray").description("Prayer requests - agent social network");
+      // Prayer Chain — On-Chain (Solana)
+      const prayerCmd = program.command("pray").description("Prayer chain — on-chain agent coordination (Solana)");
+
+      // Lazy-load the Solana client to avoid import cost when not using pray commands
+      async function getSolanaClient() {
+        const { ChorusPrayerClient } = await import("./src/prayers/solana.js");
+        const rpcUrl = process.env.SOLANA_RPC_URL || "http://localhost:8899";
+        return ChorusPrayerClient.fromDefaultKeypair(rpcUrl);
+      }
+
+      function shortKey(key: any): string {
+        const s = key.toBase58();
+        if (s === "11111111111111111111111111111111") return "(none)";
+        return `${s.slice(0, 4)}...${s.slice(-4)}`;
+      }
+
+      function formatSOL(lamports: number): string {
+        if (!lamports) return "none";
+        return `${(lamports / 1e9).toFixed(4)} SOL`;
+      }
+
+      function formatOnChainTime(ts: number): string {
+        if (!ts) return "—";
+        return new Date(ts * 1000).toLocaleString();
+      }
+
+      function formatStatus(status: any): string {
+        return typeof status === "object" ? Object.keys(status)[0].toUpperCase() : String(status).toUpperCase();
+      }
+
+      function formatType(t: any): string {
+        return typeof t === "object" ? Object.keys(t)[0] : String(t);
+      }
 
       prayerCmd
-        .command("ask <content>")
-        .description("Create a prayer request")
-        .option("-c, --category <cat>", "Category (research|execution|validation|computation|social|other)")
-        .option("-t, --title <title>", "Title (defaults to first 50 chars)")
-        .action((content: string, options: { category?: string; title?: string }) => {
-          const request = prayers.createRequest({
-            type: 'ask',
-            category: (options.category || 'other') as any,
-            title: options.title || content.slice(0, 50),
-            content,
-            expiresIn: 24 * 60 * 60 * 1000
-          });
-          console.log(`\n🙏 Prayer request created: ${request.id.slice(0, 8)}...`);
-          console.log(`   Title: ${request.title}`);
-          console.log(`   Status: ${request.status}\n`);
+        .command("chain")
+        .description("Show prayer chain stats")
+        .action(async () => {
+          const client = await getSolanaClient();
+          const chain = await client.getPrayerChain();
+          if (!chain) {
+            console.log("\n⛓️  Prayer Chain not initialized. Run: chorus pray init\n");
+            return;
+          }
+          console.log("\n⛓️  Prayer Chain");
+          console.log("═".repeat(40));
+          console.log(`  Authority:      ${shortKey(chain.authority)}`);
+          console.log(`  Total Prayers:  ${chain.totalPrayers}`);
+          console.log(`  Total Answered: ${chain.totalAnswered}`);
+          console.log(`  Total Agents:   ${chain.totalAgents}`);
+          console.log(`  RPC:            ${process.env.SOLANA_RPC_URL || "http://localhost:8899"}`);
+          console.log("");
+        });
+
+      prayerCmd
+        .command("init")
+        .description("Initialize the prayer chain (one-time)")
+        .action(async () => {
+          const client = await getSolanaClient();
+          console.log("\n⛓️  Initializing Prayer Chain...");
+          try {
+            const tx = await client.initialize();
+            console.log(`  ✓ Initialized (tx: ${tx.slice(0, 16)}...)\n`);
+          } catch (err: any) {
+            if (err.message?.includes("already in use")) {
+              console.log("  Already initialized.\n");
+            } else {
+              console.error(`  ✗ ${err.message}\n`);
+            }
+          }
+        });
+
+      prayerCmd
+        .command("register <name> <skills>")
+        .description("Register as an agent on the prayer chain")
+        .action(async (name: string, skills: string) => {
+          const client = await getSolanaClient();
+          console.log(`\n🤖 Registering agent "${name}"...`);
+          try {
+            const tx = await client.registerAgent(name, skills);
+            console.log(`  ✓ Registered (tx: ${tx.slice(0, 16)}...)\n`);
+          } catch (err: any) {
+            if (err.message?.includes("already in use")) {
+              console.log("  Already registered.\n");
+            } else {
+              console.error(`  ✗ ${err.message}\n`);
+            }
+          }
+        });
+
+      prayerCmd
+        .command("agent [wallet]")
+        .description("Show agent profile")
+        .action(async (wallet?: string) => {
+          const client = await getSolanaClient();
+          const { PublicKey } = await import("@solana/web3.js");
+          const key = wallet ? new PublicKey(wallet) : client.wallet;
+          const agent = await client.getAgent(key);
+          if (!agent) {
+            console.log('\n🤖 Agent not registered. Run: chorus pray register "<name>" "<skills>"\n');
+            return;
+          }
+          console.log("\n🤖 Agent");
+          console.log("═".repeat(40));
+          console.log(`  Wallet:           ${shortKey(agent.wallet)}`);
+          console.log(`  Name:             ${agent.name}`);
+          console.log(`  Skills:           ${agent.skills}`);
+          console.log(`  Reputation:       ${agent.reputation}`);
+          console.log(`  Prayers Posted:   ${agent.prayersPosted}`);
+          console.log(`  Prayers Answered: ${agent.prayersAnswered}`);
+          console.log(`  Prayers Confirmed: ${agent.prayersConfirmed}`);
+          console.log(`  Registered:       ${formatOnChainTime(agent.registeredAt)}`);
+          console.log("");
+        });
+
+      prayerCmd
+        .command("post <content>")
+        .description("Post a prayer on-chain")
+        .option("-t, --type <type>", "Prayer type (knowledge|compute|review|signal|collaboration)", "knowledge")
+        .option("-b, --bounty <sol>", "SOL bounty", "0")
+        .option("--ttl <seconds>", "Time to live in seconds", "86400")
+        .action(async (content: string, options: { type: string; bounty: string; ttl: string }) => {
+          const client = await getSolanaClient();
+          const bountyLamports = Math.round(parseFloat(options.bounty) * 1e9);
+          const ttl = parseInt(options.ttl);
+
+          console.log("\n🙏 Posting prayer...");
+          console.log(`  Type:    ${options.type}`);
+          console.log(`  Content: ${content.slice(0, 80)}${content.length > 80 ? "..." : ""}`);
+          console.log(`  Bounty:  ${parseFloat(options.bounty) > 0 ? `${options.bounty} SOL` : "none"}`);
+          console.log(`  TTL:     ${ttl}s (${(ttl / 3600).toFixed(1)}h)`);
+          try {
+            const { tx, prayerId } = await client.postPrayer(
+              options.type as any,
+              content,
+              bountyLamports,
+              ttl
+            );
+            console.log(`  ✓ Prayer #${prayerId} posted (tx: ${tx.slice(0, 16)}...)\n`);
+          } catch (err: any) {
+            console.error(`  ✗ ${err.message}\n`);
+          }
         });
 
       prayerCmd
         .command("list")
-        .description("List prayer requests")
+        .description("List prayers")
         .option("-s, --status <status>", "Filter by status")
-        .option("-m, --mine", "Show only my requests")
-        .action((options: { status?: string; mine?: boolean }) => {
-          const requests = prayers.listRequests({
-            status: options.status as any,
-            mine: options.mine
-          });
-          console.log(`\n🙏 Prayer Requests (${requests.length})\n`);
-          if (requests.length === 0) {
-            console.log("   No requests found.\n");
+        .option("-l, --limit <n>", "Max results", "20")
+        .action(async (options: { status?: string; limit: string }) => {
+          const client = await getSolanaClient();
+          const chain = await client.getPrayerChain();
+          if (!chain || chain.totalPrayers === 0) {
+            console.log("\n🙏 No prayers yet.\n");
             return;
           }
-          for (const req of requests) {
-            const icon = req.type === 'ask' ? '🙏' : '✋';
-            console.log(`   [${req.status.toUpperCase()}] ${req.id.slice(0, 8)}... ${icon} ${req.title}`);
-            console.log(`      From: ${req.from.name || req.from.id.slice(0, 12)} | Category: ${req.category}`);
+          const limit = parseInt(options.limit);
+          const statusFilter = options.status?.toLowerCase();
+
+          console.log(`\n🙏 Prayers (${chain.totalPrayers} total)`);
+          console.log("═".repeat(60));
+
+          let shown = 0;
+          for (let i = chain.totalPrayers - 1; i >= 0 && shown < limit; i--) {
+            const prayer = await client.getPrayer(i);
+            if (!prayer) continue;
+            const status = formatStatus(prayer.status);
+            if (statusFilter && status.toLowerCase() !== statusFilter) continue;
+            const type = formatType(prayer.prayerType);
+            const bounty = prayer.rewardLamports > 0 ? ` 💰${formatSOL(prayer.rewardLamports)}` : "";
+            const icon = { OPEN: "🟢", CLAIMED: "🟡", FULFILLED: "🔵", CONFIRMED: "✅", EXPIRED: "⏰", CANCELLED: "❌" }[status] || "❓";
+
+            console.log(`  ${icon} #${prayer.id} [${status}] (${type})${bounty}`);
+            console.log(`     ${prayer.content.slice(0, 70)}${prayer.content.length > 70 ? "..." : ""}`);
+            console.log(`     From: ${shortKey(prayer.requester)} | ${formatOnChainTime(prayer.createdAt)}`);
+            if (prayer.answer) {
+              console.log(`     💬 ${prayer.answer.slice(0, 70)}${prayer.answer.length > 70 ? "..." : ""}`);
+            }
+            shown++;
           }
           console.log("");
         });
 
       prayerCmd
-        .command("accept <id>")
-        .description("Accept a prayer request")
-        .action((id: string) => {
-          const all = prayers.listRequests({});
-          const match = all.find(r => r.id.startsWith(id));
-          if (!match) {
-            console.error("\n✗ Request not found\n");
+        .command("show <id>")
+        .description("Show prayer details")
+        .action(async (id: string) => {
+          const client = await getSolanaClient();
+          const prayer = await client.getPrayer(parseInt(id));
+          if (!prayer) {
+            console.error(`\n✗ Prayer #${id} not found\n`);
             return;
           }
-          const response = prayers.acceptRequest(match.id);
-          if (response) {
-            console.log(`\n✓ Accepted: ${match.title}\n`);
-          } else {
-            console.error("\n✗ Could not accept (expired or already taken)\n");
+          console.log(`\n🙏 Prayer #${prayer.id}`);
+          console.log("═".repeat(50));
+          console.log(`  Status:    ${formatStatus(prayer.status)}`);
+          console.log(`  Type:      ${formatType(prayer.prayerType)}`);
+          console.log(`  Requester: ${shortKey(prayer.requester)}`);
+          console.log(`  Bounty:    ${formatSOL(prayer.rewardLamports)}`);
+          console.log(`  Created:   ${formatOnChainTime(prayer.createdAt)}`);
+          console.log(`  Expires:   ${formatOnChainTime(prayer.expiresAt)}`);
+          console.log(`\n  Content:\n    ${prayer.content}`);
+          const claimerStr = prayer.claimer.toBase58();
+          if (claimerStr !== "11111111111111111111111111111111") {
+            console.log(`\n  Claimer:   ${shortKey(prayer.claimer)}`);
+            console.log(`  Claimed:   ${formatOnChainTime(prayer.claimedAt)}`);
+          }
+          if (prayer.answer) {
+            console.log(`\n  Answer:\n    ${prayer.answer}`);
+            console.log(`  Fulfilled: ${formatOnChainTime(prayer.fulfilledAt)}`);
+          }
+          console.log("");
+        });
+
+      prayerCmd
+        .command("claim <id>")
+        .description("Claim a prayer (signal intent to answer)")
+        .action(async (id: string) => {
+          const client = await getSolanaClient();
+          console.log(`\n🤝 Claiming prayer #${id}...`);
+          try {
+            const tx = await client.claimPrayer(parseInt(id));
+            console.log(`  ✓ Claimed (tx: ${tx.slice(0, 16)}...)\n`);
+          } catch (err: any) {
+            console.error(`  ✗ ${err.message}\n`);
           }
         });
 
       prayerCmd
-        .command("complete <id> <result>")
-        .description("Mark request as complete")
-        .action((id: string, result: string) => {
-          const all = prayers.listRequests({});
-          const match = all.find(r => r.id.startsWith(id));
-          if (!match) {
-            console.error("\n✗ Request not found\n");
-            return;
-          }
-          const response = prayers.completeRequest(match.id, result);
-          if (response) {
-            console.log(`\n✓ Marked complete. Awaiting confirmation.\n`);
-          } else {
-            console.error("\n✗ Could not complete (not accepted by you?)\n");
+        .command("answer <id> <answer>")
+        .description("Answer a claimed prayer")
+        .action(async (id: string, answer: string) => {
+          const client = await getSolanaClient();
+          console.log(`\n💬 Answering prayer #${id}...`);
+          console.log(`  Answer: ${answer.slice(0, 80)}${answer.length > 80 ? "..." : ""}`);
+          try {
+            const tx = await client.answerPrayer(parseInt(id), answer);
+            console.log(`  ✓ Answered (tx: ${tx.slice(0, 16)}...)\n`);
+          } catch (err: any) {
+            console.error(`  ✗ ${err.message}\n`);
           }
         });
 
       prayerCmd
         .command("confirm <id>")
-        .description("Confirm completion")
-        .option("--reject", "Reject/dispute the completion")
-        .action((id: string, options: { reject?: boolean }) => {
-          const all = prayers.listRequests({});
-          const match = all.find(r => r.id.startsWith(id));
-          if (!match) {
-            console.error("\n✗ Request not found\n");
-            return;
-          }
-          const detail = prayers.getRequest(match.id);
-          const completion = detail?.responses.find(r => r.action === 'complete');
-          if (!completion) {
-            console.error("\n✗ No completion to confirm\n");
-            return;
-          }
-          const confirmation = prayers.confirmCompletion(match.id, completion.id, !options.reject);
-          if (confirmation) {
-            console.log(options.reject ? "\n✗ Disputed\n" : "\n✓ Confirmed\n");
-          } else {
-            console.error("\n✗ Could not confirm (not your request?)\n");
+        .description("Confirm an answer (requester only)")
+        .action(async (id: string) => {
+          const client = await getSolanaClient();
+          console.log(`\n✅ Confirming prayer #${id}...`);
+          try {
+            const tx = await client.confirmPrayer(parseInt(id));
+            console.log(`  ✓ Confirmed (tx: ${tx.slice(0, 16)}...)\n`);
+          } catch (err: any) {
+            console.error(`  ✗ ${err.message}\n`);
           }
         });
 
       prayerCmd
-        .command("reputation [agentId]")
-        .description("Show agent reputation")
-        .action((agentId?: string) => {
-          const rep = prayers.getReputation(agentId);
-          console.log(`\n📊 Reputation: ${rep.agentId.slice(0, 12)}...`);
-          console.log(`   Fulfilled: ${rep.fulfilled}`);
-          console.log(`   Requested: ${rep.requested}`);
-          console.log(`   Disputed:  ${rep.disputed}\n`);
+        .command("cancel <id>")
+        .description("Cancel an open prayer (requester only)")
+        .action(async (id: string) => {
+          const client = await getSolanaClient();
+          console.log(`\n❌ Cancelling prayer #${id}...`);
+          try {
+            const tx = await client.cancelPrayer(parseInt(id));
+            console.log(`  ✓ Cancelled (tx: ${tx.slice(0, 16)}...)\n`);
+          } catch (err: any) {
+            console.error(`  ✗ ${err.message}\n`);
+          }
         });
 
       prayerCmd
-        .command("peers")
-        .description("List known peers")
-        .action(() => {
-          const peers = prayerStore.getPeers();
-          console.log(`\n👥 Known Peers (${peers.length})\n`);
-          if (peers.length === 0) {
-            console.log("   No peers configured.\n");
-            return;
+        .command("unclaim <id>")
+        .description("Unclaim a prayer")
+        .action(async (id: string) => {
+          const client = await getSolanaClient();
+          console.log(`\n🔓 Unclaiming prayer #${id}...`);
+          try {
+            const tx = await client.unclaimPrayer(parseInt(id));
+            console.log(`  ✓ Unclaimed (tx: ${tx.slice(0, 16)}...)\n`);
+          } catch (err: any) {
+            console.error(`  ✗ ${err.message}\n`);
           }
-          for (const peer of peers) {
-            console.log(`   ${peer.name || peer.id}`);
-            console.log(`      Endpoint: ${peer.endpoint || 'none'}`);
-          }
-          console.log("");
-        });
-
-      prayerCmd
-        .command("add-peer <id>")
-        .description("Add a peer")
-        .option("-e, --endpoint <url>", "Peer's gateway URL")
-        .option("-n, --name <name>", "Peer's name")
-        .action((id: string, options: { endpoint?: string; name?: string }) => {
-          prayerStore.addPeer({
-            id,
-            address: '0x0',
-            endpoint: options.endpoint,
-            name: options.name
-          });
-          console.log(`\n✓ Added peer: ${options.name || id}\n`);
         });
 
       // Inbox command (shortcut)

@@ -5,11 +5,16 @@
  * Wraps the Anchor-generated IDL for ergonomic usage.
  */
 
-import { Program, AnchorProvider, web3, BN, Wallet } from "@coral-xyz/anchor";
+import { Program, AnchorProvider, web3, Wallet } from "@coral-xyz/anchor";
+import BN from "bn.js";
 import { Connection, PublicKey, Keypair, SystemProgram } from "@solana/web3.js";
 import { createHash } from "crypto";
 import * as fs from "fs";
 import * as path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Program ID (deployed to devnet)
 export const PROGRAM_ID = new PublicKey("DZuj1ZcX4H6THBSgW4GhKA7SbZNXtPDE5xPkW2jN53PQ");
@@ -59,6 +64,7 @@ export interface PrayerAccount {
   rewardLamports: number;
   status: PrayerStatus;
   claimer: PublicKey;
+  claimedAt: number;
   answer: string;
   answerHash: number[];
   createdAt: number;
@@ -187,6 +193,7 @@ export class ChorusPrayerClient {
         rewardLamports: account.rewardLamports.toNumber(),
         status: Object.keys(account.status)[0] as unknown as PrayerStatus,
         claimer: account.claimer,
+        claimedAt: account.claimedAt.toNumber(),
         answer: account.answer,
         answerHash: account.answerHash,
         createdAt: account.createdAt.toNumber(),
