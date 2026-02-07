@@ -26,6 +26,13 @@ const __dirname = path.dirname(__filename);
 // Program ID (deployed to devnet)
 export const PROGRAM_ID = new PublicKey("DZuj1ZcX4H6THBSgW4GhKA7SbZNXtPDE5xPkW2jN53PQ");
 
+// Max plaintext size that fits in a Solana transaction after encryption overhead
+// Encrypted blob = plaintext + 40 bytes (24 nonce + 16 Poly1305 tag)
+// deliver_content (2 accounts): ~982 bytes available → 942 char max
+// answer_prayer (4 accounts): ~882 bytes available → 842 char max
+export const MAX_CONTENT_LENGTH = 900;  // Conservative limit for deliver_content
+export const MAX_ANSWER_LENGTH = 800;   // Conservative limit for answer_prayer
+
 // Prayer types matching the on-chain enum
 export enum PrayerType {
   Knowledge = 0,
@@ -354,6 +361,10 @@ export class ChorusPrayerClient {
    * Looks up the claimer's encryption key on-chain and encrypts the content.
    */
   async deliverContent(prayerId: number, plaintext: string): Promise<string> {
+    if (plaintext.length > MAX_CONTENT_LENGTH) {
+      throw new Error(`Content too long (${plaintext.length} chars, max ${MAX_CONTENT_LENGTH}). Shorten or split across multiple prayers.`);
+    }
+
     const prayer = await this.getPrayer(prayerId);
     if (!prayer) throw new Error("Prayer not found");
     
@@ -382,6 +393,10 @@ export class ChorusPrayerClient {
    * Encrypts the answer for the requester using their on-chain encryption key.
    */
   async answerPrayer(prayerId: number, answer: string): Promise<string> {
+    if (answer.length > MAX_ANSWER_LENGTH) {
+      throw new Error(`Answer too long (${answer.length} chars, max ${MAX_ANSWER_LENGTH}). Shorten or split.`);
+    }
+
     const prayer = await this.getPrayer(prayerId);
     if (!prayer) throw new Error("Prayer not found");
 

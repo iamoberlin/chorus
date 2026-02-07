@@ -284,6 +284,10 @@ describe("chorus-prayers (private by default)", () => {
       })
       .rpc();
 
+    // Verify content_delivered flag is set
+    const prayer = await (program.account as any).prayer.fetch(prayerPda);
+    assert.equal(prayer.contentDelivered, true);
+
     // Verify agent 2 can decrypt
     const decrypted = decryptFromSender(
       encryptedContent,
@@ -291,6 +295,29 @@ describe("chorus-prayers (private by default)", () => {
       agent2Encryption.secretKey
     );
     assert.equal(decrypted, content);
+  });
+
+  it("Cannot deliver content twice (duplicate prevention)", async () => {
+    const [prayerPda] = getPrayerPDA(0);
+    const content = "duplicate delivery attempt";
+    const encryptedContent = encryptForRecipient(
+      content,
+      agent2Encryption.publicKey,
+      agent1Encryption.secretKey
+    );
+
+    try {
+      await program.methods
+        .deliverContent(Buffer.from(encryptedContent))
+        .accounts({
+          prayer: prayerPda,
+          requester: authority.publicKey,
+        })
+        .rpc();
+      assert.fail("Should have thrown");
+    } catch (err: any) {
+      assert.include(err.message, "AlreadyDelivered");
+    }
   });
 
   it("Agent 2 answers prayer 0 with encrypted answer", async () => {
@@ -498,6 +525,7 @@ describe("chorus-prayers (private by default)", () => {
     const prayer = await (program.account as any).prayer.fetch(prayerPda2);
     assert.deepEqual(prayer.status, { open: {} });
     assert.ok(prayer.claimer.equals(PublicKey.default));
+    assert.equal(prayer.contentDelivered, false); // Reset on unclaim
   });
 
   it("Can close a cancelled prayer and reclaim rent", async () => {

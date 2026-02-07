@@ -75,6 +75,7 @@ pub struct Prayer {
     pub status: PrayerStatus,
     pub claimer: Pubkey,         // Pubkey::default() if none
     pub claimed_at: i64,         // When claimed (for timeout enforcement)
+    pub content_delivered: bool,  // Whether encrypted content has been delivered to claimer
     pub answer_hash: [u8; 32],   // SHA-256 of plaintext answer
     pub created_at: i64,
     pub expires_at: i64,
@@ -83,8 +84,8 @@ pub struct Prayer {
 }
 
 impl Prayer {
-    // 8 + 32 + 1 + 32 + 8 + 1 + 32 + 8 + 32 + 8 + 8 + 8 + 1 = 179
-    pub const INIT_SPACE: usize = 8 + 32 + 1 + 32 + 8 + 1 + 32 + 8 + 32 + 8 + 8 + 8 + 1;
+    // 8 + 32 + 1 + 32 + 8 + 1 + 32 + 8 + 1 + 32 + 8 + 8 + 8 + 1 = 180
+    pub const INIT_SPACE: usize = 8 + 32 + 1 + 32 + 8 + 1 + 32 + 8 + 1 + 32 + 8 + 8 + 8 + 1;
 }
 
 // ── Events (for off-chain indexing) ───────────────────────
@@ -208,6 +209,7 @@ pub mod chorus_prayers {
         prayer.status = PrayerStatus::Open;
         prayer.claimer = Pubkey::default();
         prayer.claimed_at = 0;
+        prayer.content_delivered = false;
         prayer.answer_hash = [0u8; 32];
         prayer.created_at = now;
         prayer.expires_at = now.checked_add(ttl_seconds).unwrap();
@@ -279,13 +281,16 @@ pub mod chorus_prayers {
         ctx: Context<DeliverContent>,
         encrypted_content: Vec<u8>,
     ) -> Result<()> {
-        let prayer = &ctx.accounts.prayer;
+        let prayer = &mut ctx.accounts.prayer;
 
         require!(prayer.status == PrayerStatus::Claimed, PrayerError::NotClaimed);
         require!(
             prayer.requester == ctx.accounts.requester.key(),
             PrayerError::NotRequester
         );
+        require!(!prayer.content_delivered, PrayerError::AlreadyDelivered);
+
+        prayer.content_delivered = true;
 
         emit!(ContentDelivered {
             prayer_id: prayer.id,
@@ -441,6 +446,7 @@ pub mod chorus_prayers {
         prayer.status = PrayerStatus::Open;
         prayer.claimer = Pubkey::default();
         prayer.claimed_at = 0;
+        prayer.content_delivered = false; // Reset so new claimer gets fresh delivery
 
         Ok(())
     }
@@ -577,6 +583,7 @@ pub struct ClaimPrayer<'info> {
 #[instruction()]
 pub struct DeliverContent<'info> {
     #[account(
+        mut,
         seeds = [b"prayer", prayer.id.to_le_bytes().as_ref()],
         bump = prayer.bump,
         has_one = requester @ PrayerError::NotRequester,
@@ -716,4 +723,6 @@ pub enum PrayerError {
     CannotClose,
     #[msg("Encryption key cannot be all zeros")]
     InvalidEncryptionKey,
+    #[msg("Content has already been delivered")]
+    AlreadyDelivered,
 }
