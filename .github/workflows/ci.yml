@@ -104,23 +104,29 @@ jobs:
           sh -c "$(curl -sSfL https://release.solana.com/stable/install)"
           echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
 
-      - name: Install Anchor CLI
+      - name: Install Anchor via AVM
         run: |
           # Check if anchor is already cached
           if command -v anchor &> /dev/null; then
             echo "✓ Anchor CLI found in cache"
             anchor --version
           else
-            echo "Installing Anchor CLI..."
-            # Try to install from crates.io first (faster than building from source)
-            cargo install --version 0.30.1 anchor-cli --locked 2>/dev/null || \
-              cargo install --git https://github.com/coral-xyz/anchor --tag v0.30.1 anchor-cli --locked --force
+            echo "Installing Anchor CLI via AVM (prebuilt binaries)..."
+            # Install AVM (Anchor Version Manager)
+            cargo install --git https://github.com/coral-xyz/anchor avm --locked --force
+
+            # Install Anchor 0.30.1 using AVM (downloads prebuilt binary, much faster)
+            avm install 0.30.1
+            avm use 0.30.1
+
+            echo "✓ Anchor CLI installed via AVM"
+            anchor --version
           fi
 
       - name: Build Anchor program
         run: |
-          # Add Solana and Cargo to PATH
-          export PATH="$HOME/.local/share/solana/install/active_release/bin:$HOME/.cargo/bin:$PATH"
+          # Add Solana, Cargo, and AVM to PATH
+          export PATH="$HOME/.local/share/solana/install/active_release/bin:$HOME/.cargo/bin:$HOME/.avm/bin:$PATH"
 
           if [ -f "Anchor.toml" ]; then
             echo "Building Anchor program..."
