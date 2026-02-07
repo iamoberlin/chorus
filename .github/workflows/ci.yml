@@ -86,7 +86,7 @@ jobs:
         with:
           toolchain: stable
 
-      - name: Cache Cargo and Anchor
+      - name: Cache Cargo, Anchor, and Solana
         uses: actions/cache@v4
         with:
           path: |
@@ -94,24 +94,56 @@ jobs:
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
+            ~/.local/share/solana/
+            ~/.avm/
             target/
-          key: ${{ runner.os }}-cargo-anchor-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-solana-anchor-${{ hashFiles('**/Cargo.lock') }}-v2
           restore-keys: |
-            ${{ runner.os }}-cargo-anchor-
+            ${{ runner.os }}-solana-anchor-
 
       - name: Install Solana CLI
         run: |
-          sh -c "$(curl -sSfL https://release.solana.com/stable/install)"
-
-          # Verify installation
-          if [ -d "$HOME/.local/share/solana/install/active_release/bin" ]; then
-            echo "✓ Solana CLI installed"
-            ls -la "$HOME/.local/share/solana/install/active_release/bin/"
+          # Check if Solana is already cached
+          if [ -f "$HOME/.local/share/solana/install/active_release/bin/solana" ]; then
+            echo "✓ Solana CLI found in cache"
+            "$HOME/.local/share/solana/install/active_release/bin/solana" --version
             echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
           else
-            echo "Error: Solana installation directory not found"
-            find $HOME/.local/share/solana -name solana 2>/dev/null || echo "No solana binary found"
-            exit 1
+            echo "Installing Solana CLI..."
+            # Try to install Solana with retries
+            MAX_RETRIES=3
+            RETRY_COUNT=0
+            SUCCESS=false
+
+            while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ "$SUCCESS" = false ]; do
+              echo "Attempt $((RETRY_COUNT + 1)) of $MAX_RETRIES..."
+
+              if sh -c "$(curl -sSfL https://release.solana.com/stable/install)"; then
+                SUCCESS=true
+                echo "✓ Solana installation completed"
+              else
+                RETRY_COUNT=$((RETRY_COUNT + 1))
+                if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                  echo "Installation failed, waiting 5 seconds before retry..."
+                  sleep 5
+                fi
+              fi
+            done
+
+            if [ "$SUCCESS" = false ]; then
+              echo "Error: Failed to install Solana after $MAX_RETRIES attempts"
+              exit 1
+            fi
+
+            # Verify installation
+            if [ -d "$HOME/.local/share/solana/install/active_release/bin" ]; then
+              echo "✓ Solana CLI installed successfully"
+              ls -la "$HOME/.local/share/solana/install/active_release/bin/"
+              echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+            else
+              echo "Error: Solana installation directory not found"
+              exit 1
+            fi
           fi
 
       - name: Install Anchor via AVM
