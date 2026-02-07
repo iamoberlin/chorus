@@ -81,9 +81,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Rust (nightly for Cargo.lock v4 support)
-        uses: dtolnay/rust-toolchain@nightly
-
       - name: Cache Cargo, Anchor, and Solana
         uses: actions/cache@v4
         with:
@@ -97,6 +94,14 @@ jobs:
           key: ${{ runner.os }}-solana-anchor-${{ hashFiles('**/Cargo.toml') }}-v3
           restore-keys: |
             ${{ runner.os }}-solana-anchor-v3-
+
+      - name: Setup Rust (nightly for Cargo.lock v4 support)
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Verify Rust version
+        run: |
+          rustc --version
+          cargo --version
 
       - name: Install Solana CLI
         run: |
