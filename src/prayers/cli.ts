@@ -5,24 +5,26 @@
  * All prayers are end-to-end encrypted. Only the asker and claimer
  * can read prayer content and answers.
  * 
- * Encryption uses X25519 DH key exchange derived from Solana wallet keypairs.
- * No extra keys to manage — your wallet IS your encryption identity.
+ * Supports multi-claimer collaboration: prayers can accept 1-10 agents.
+ * Bounty splits equally among all claimers on confirm.
  * 
  * Usage:
- *   chorus pray post "What is the current SOFR rate?" --type knowledge --bounty 0.01
+ *   chorus pray post "What is the current SOFR rate?" --type knowledge --bounty 0.01 --claimers 3
  *   chorus pray list
  *   chorus pray show <id>
+ *   chorus pray claims <id>                           # List all claims for a prayer
  *   chorus pray claim <id>
- *   chorus pray deliver <id>                          # Send encrypted content to claimer
+ *   chorus pray deliver <id> [--claimer <wallet>]     # Deliver to one or all claimers
  *   chorus pray answer <id> "SOFR is 4.55%"
  *   chorus pray confirm <id>
  *   chorus pray cancel <id>
+ *   chorus pray unclaim <id> [--claimer <wallet>]     # Unclaim own or expired claim
  *   chorus pray agent                                 # Show my on-chain agent
  *   chorus pray register "oberlin" "macro analysis"   # Register (auto-derives encryption key)
  *   chorus pray chain                                 # Show prayer chain stats
  */
 
-import { ChorusPrayerClient, PrayerType, getPrayerChainPDA, getAgentPDA, getPrayerPDA } from "./solana.js";
+import { ChorusPrayerClient, PrayerType, PrayerAccount, ClaimAccount, getPrayerChainPDA, getAgentPDA, getPrayerPDA, getClaimPDA } from "./solana.js";
 import { PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { createHash } from "crypto";
 import * as fs from "fs";
@@ -35,8 +37,6 @@ const __dirname = path.dirname(__filename);
 const RPC_URL = process.env.SOLANA_RPC_URL || "http://localhost:8899";
 
 // ── Local text store (off-chain content cache) ────────────
-// Stores plaintext locally so the asker can deliver it later
-// and both parties can display decrypted content.
 const STORE_PATH = path.join(__dirname, "../../.prayer-texts.json");
 
 interface TextStore {
@@ -116,6 +116,11 @@ function formatEncryptionKey(key: number[]): string {
   const allZero = key.every(b => b === 0);
   if (allZero) return "(none)";
   return Buffer.from(key).toString("hex").slice(0, 16) + "…";
+}
+
+function getArgValue(flag: string): string | null {
+  const idx = args.indexOf(flag);
+  return idx > -1 ? args[idx + 1] || null : null;
 }
 
 const args = process.argv.slice(2);
@@ -214,25 +219,23 @@ async function main() {
     case "post": {
       const content = args[1];
       if (!content) {
-        console.error('Usage: post "<content>" [--type knowledge] [--bounty 0.01] [--ttl 86400]');
+        console.error('Usage: post "<content>" [--type knowledge] [--bounty 0.01] [--ttl 86400] [--claimers 1]');
         process.exit(1);
       }
 
-      const typeIdx = args.indexOf("--type");
-      const bountyIdx = args.indexOf("--bounty");
-      const ttlIdx = args.indexOf("--ttl");
-
-      const prayerType = typeIdx > -1 ? args[typeIdx + 1] : "knowledge";
-      const bountySOL = bountyIdx > -1 ? parseFloat(args[bountyIdx + 1]) : 0;
-      const ttl = ttlIdx > -1 ? parseInt(args[ttlIdx + 1]) : 86400;
+      const prayerType = getArgValue("--type") || "knowledge";
+      const bountySOL = parseFloat(getArgValue("--bounty") || "0");
+      const ttl = parseInt(getArgValue("--ttl") || "86400");
+      const maxClaimers = parseInt(getArgValue("--claimers") || "1");
       const bountyLamports = Math.round(bountySOL * LAMPORTS_PER_SOL);
 
       console.log("");
       console.log("🙏 Posting private prayer...");
-      console.log(`  Type:    ${prayerType}`);
-      console.log(`  Content: ${content.slice(0, 80)}${content.length > 80 ? "..." : ""}`);
-      console.log(`  Bounty:  ${bountySOL > 0 ? `${bountySOL} SOL` : "none"}`);
-      console.log(`  TTL:     ${ttl}s (${(ttl / 3600).toFixed(1)}h)`);
+      console.log(`  Type:        ${prayerType}`);
+      console.log(`  Content:     ${content.slice(0, 80)}${content.length > 80 ? "..." : ""}`);
+      console.log(`  Bounty:      ${bountySOL > 0 ? `${bountySOL} SOL` : "none"}`);
+      console.log(`  TTL:         ${ttl}s (${(ttl / 3600).toFixed(1)}h)`);
+      console.log(`  Max Claimers: ${maxClaimers}${maxClaimers > 1 ? " (collaboration)" : " (solo)"}`);
       console.log(`  🔐 Only hash goes on-chain. Content stored locally.`);
 
       try {
@@ -240,7 +243,8 @@ async function main() {
           prayerType as unknown as PrayerType,
           content,
           bountyLamports,
-          ttl
+          ttl,
+          maxClaimers,
         );
         console.log(`  ✓ Prayer #${prayerId} posted (tx: ${tx.slice(0, 16)}...)`);
         console.log(`  → Run 'deliver ${prayerId}' after someone claims it`);
@@ -255,7 +259,7 @@ async function main() {
     case "deliver": {
       const id = parseInt(args[1]);
       if (isNaN(id)) {
-        console.error("Usage: deliver <prayer-id>");
+        console.error("Usage: deliver <prayer-id> [--claimer <wallet>]");
         process.exit(1);
       }
 
@@ -265,13 +269,31 @@ async function main() {
         process.exit(1);
       }
 
-      console.log(`\n🔐 Delivering encrypted content for prayer #${id}...`);
-      try {
-        const tx = await client.deliverContent(id, texts.content);
-        console.log(`  ✓ Encrypted content delivered (tx: ${tx.slice(0, 16)}...)`);
-        console.log(`  Only the claimer can decrypt this.`);
-      } catch (err: any) {
-        console.error(`  ✗ ${err.message}`);
+      const claimerArg = getArgValue("--claimer");
+
+      if (claimerArg) {
+        // Deliver to specific claimer
+        const claimerWallet = new PublicKey(claimerArg);
+        console.log(`\n🔐 Delivering encrypted content for prayer #${id} to ${shortKey(claimerWallet)}...`);
+        try {
+          const tx = await client.deliverContent(id, texts.content, claimerWallet);
+          console.log(`  ✓ Encrypted content delivered (tx: ${tx.slice(0, 16)}...)`);
+          console.log(`  Only ${shortKey(claimerWallet)} can decrypt this.`);
+        } catch (err: any) {
+          console.error(`  ✗ ${err.message}`);
+        }
+      } else {
+        // Deliver to ALL claimers
+        console.log(`\n🔐 Delivering encrypted content for prayer #${id} to all claimers...`);
+        try {
+          const txs = await client.deliverContentToAll(id, texts.content);
+          console.log(`  ✓ Delivered to ${txs.length} claimer(s)`);
+          for (const tx of txs) {
+            console.log(`    tx: ${tx.slice(0, 16)}...`);
+          }
+        } catch (err: any) {
+          console.error(`  ✗ ${err.message}`);
+        }
       }
       console.log("");
       break;
@@ -290,8 +312,8 @@ async function main() {
         return;
       }
 
-      const statusFilter = args.indexOf("--status") > -1 ? args[args.indexOf("--status") + 1]?.toLowerCase() : null;
-      const limit = args.indexOf("--limit") > -1 ? parseInt(args[args.indexOf("--limit") + 1]) : 20;
+      const statusFilter = getArgValue("--status")?.toLowerCase() || null;
+      const limit = parseInt(getArgValue("--limit") || "20");
 
       console.log("");
       console.log(`🙏 Prayers (${total} total) — 🔐 Private`);
@@ -307,9 +329,12 @@ async function main() {
 
         const type = formatType(prayer.prayerType);
         const bounty = prayer.rewardLamports > 0 ? ` 💰${formatSOL(prayer.rewardLamports)}` : "";
+        const claimerInfo = prayer.maxClaimers > 1
+          ? ` 👥${prayer.numClaimers}/${prayer.maxClaimers}`
+          : prayer.numClaimers > 0 ? " 🤝1" : "";
         const statusIcon = {
           OPEN: "🟢",
-          CLAIMED: "🟡",
+          ACTIVE: "🟡",
           FULFILLED: "🔵",
           CONFIRMED: "✅",
           EXPIRED: "⏰",
@@ -320,7 +345,7 @@ async function main() {
         const texts = getStoredText(prayer.id);
         const contentDisplay = texts.content || `🔒 [encrypted — hash: ${hashToHex(prayer.contentHash)}]`;
 
-        console.log(`  ${statusIcon} #${prayer.id} [${status}] (${type})${bounty}`);
+        console.log(`  ${statusIcon} #${prayer.id} [${status}] (${type})${bounty}${claimerInfo}`);
         console.log(`     ${contentDisplay.slice(0, 70)}${contentDisplay.length > 70 ? "..." : ""}`);
         console.log(`     From: ${shortKey(prayer.requester)} | Created: ${formatTime(prayer.createdAt)}`);
         if (texts.answer) {
@@ -346,14 +371,16 @@ async function main() {
       }
 
       const texts = getStoredText(id);
+      const status = formatStatus(prayer.status);
 
       console.log("");
       console.log(`🙏 Prayer #${prayer.id} — 🔐 Private`);
       console.log("═".repeat(50));
-      console.log(`  Status:       ${formatStatus(prayer.status)}`);
+      console.log(`  Status:       ${status}`);
       console.log(`  Type:         ${formatType(prayer.prayerType)}`);
       console.log(`  Requester:    ${shortKey(prayer.requester)}`);
       console.log(`  Bounty:       ${formatSOL(prayer.rewardLamports)}`);
+      console.log(`  Claimers:     ${prayer.numClaimers}/${prayer.maxClaimers}${prayer.maxClaimers > 1 ? " (collaboration)" : " (solo)"}`);
       console.log(`  Created:      ${formatTime(prayer.createdAt)}`);
       console.log(`  Expires:      ${formatTime(prayer.expiresAt)}`);
       console.log(`  Content Hash: ${hashToHex(prayer.contentHash)}`);
@@ -364,14 +391,28 @@ async function main() {
       } else {
         console.log("  Content: 🔒 encrypted (not in local cache)");
       }
-      if (prayer.claimer.toBase58() !== "11111111111111111111111111111111") {
+
+      // Show claims if any
+      if (prayer.numClaimers > 0) {
         console.log("");
-        console.log(`  Claimer:      ${shortKey(prayer.claimer)}`);
-        console.log(`  Claimed at:   ${formatTime(prayer.claimedAt)}`);
+        console.log(`  Claims (${prayer.numClaimers}):`);
+        const claims = await client.getClaimsForPrayer(id);
+        for (const claim of claims) {
+          const delivered = claim.contentDelivered ? "✅ delivered" : "⏳ pending delivery";
+          console.log(`    🤝 ${shortKey(claim.claimer)} — claimed ${formatTime(claim.claimedAt)} — ${delivered}`);
+        }
+        if (claims.length === 0) {
+          console.log(`    (could not enumerate — use 'claims ${id}' with known wallets)`);
+        }
+      }
+
+      const answererStr = prayer.answerer.toBase58();
+      if (answererStr !== "11111111111111111111111111111111") {
+        console.log("");
+        console.log(`  Answerer:     ${shortKey(prayer.answerer)}`);
       }
       const zeroHash = prayer.answerHash.every((b: number) => b === 0);
       if (!zeroHash) {
-        console.log("");
         console.log(`  Answer Hash:  ${hashToHex(prayer.answerHash)}`);
         if (texts.answer) {
           console.log("  Answer (decrypted):");
@@ -380,6 +421,37 @@ async function main() {
           console.log("  Answer: 🔒 encrypted (not in local cache)");
         }
         console.log(`  Fulfilled:    ${formatTime(prayer.fulfilledAt)}`);
+      }
+      console.log("");
+      break;
+    }
+
+    case "claims": {
+      const id = parseInt(args[1]);
+      if (isNaN(id)) {
+        console.error("Usage: claims <prayer-id>");
+        process.exit(1);
+      }
+
+      const prayer = await client.getPrayer(id);
+      if (!prayer) {
+        console.error(`\n✗ Prayer #${id} not found\n`);
+        return;
+      }
+
+      console.log("");
+      console.log(`🤝 Claims for Prayer #${id} (${prayer.numClaimers}/${prayer.maxClaimers})`);
+      console.log("═".repeat(50));
+
+      const claims = await client.getClaimsForPrayer(id);
+      if (claims.length === 0) {
+        console.log("  No claims found.");
+      } else {
+        for (const claim of claims) {
+          const delivered = claim.contentDelivered ? "✅ content delivered" : "⏳ awaiting delivery";
+          console.log(`  🤝 ${claim.claimer.toBase58()}`);
+          console.log(`     Claimed: ${formatTime(claim.claimedAt)} | ${delivered}`);
+        }
       }
       console.log("");
       break;
@@ -433,7 +505,7 @@ async function main() {
       console.log(`\n✅ Confirming prayer #${id}...`);
       try {
         const tx = await client.confirmPrayer(id);
-        console.log(`  ✓ Confirmed (tx: ${tx.slice(0, 16)}...)`);
+        console.log(`  ✓ Confirmed — bounty distributed to all claimers (tx: ${tx.slice(0, 16)}...)`);
       } catch (err: any) {
         console.error(`  ✗ ${err.message}`);
       }
@@ -461,13 +533,33 @@ async function main() {
     case "unclaim": {
       const id = parseInt(args[1]);
       if (isNaN(id)) {
-        console.error("Usage: unclaim <prayer-id>");
+        console.error("Usage: unclaim <prayer-id> [--claimer <wallet>]");
         process.exit(1);
       }
-      console.log(`\n🔓 Unclaiming prayer #${id}...`);
+      const claimerArg = getArgValue("--claimer");
+      const claimerWallet = claimerArg ? new PublicKey(claimerArg) : undefined;
+      const target = claimerWallet ? shortKey(claimerWallet) : "self";
+      console.log(`\n🔓 Unclaiming prayer #${id} (${target})...`);
       try {
-        const tx = await client.unclaimPrayer(id);
+        const tx = await client.unclaimPrayer(id, claimerWallet);
         console.log(`  ✓ Unclaimed (tx: ${tx.slice(0, 16)}...)`);
+      } catch (err: any) {
+        console.error(`  ✗ ${err.message}`);
+      }
+      console.log("");
+      break;
+    }
+
+    case "close": {
+      const id = parseInt(args[1]);
+      if (isNaN(id)) {
+        console.error("Usage: close <prayer-id>");
+        process.exit(1);
+      }
+      console.log(`\n🗑️  Closing prayer #${id}...`);
+      try {
+        const tx = await client.closePrayer(id);
+        console.log(`  ✓ Closed — rent returned (tx: ${tx.slice(0, 16)}...)`);
       } catch (err: any) {
         console.error(`  ✗ ${err.message}`);
       }
@@ -479,33 +571,41 @@ async function main() {
       console.log(`
 🙏 Prayer Chain CLI — Private by Default
    All content E2E encrypted (X25519 + XSalsa20-Poly1305)
+   Supports multi-agent collaboration (1-10 claimers per prayer)
 
 Commands:
-  chain                           Show prayer chain stats
-  init                            Initialize the prayer chain
-  register "<name>" "<skills>"    Register (auto-derives encryption key)
-  agent [wallet]                  Show agent profile + encryption key
-  post "<content>" [options]      Post a private prayer (hash-only on-chain)
-    --type <type>                   knowledge|compute|review|signal|collaboration
-    --bounty <SOL>                  SOL bounty (e.g. 0.01)
-    --ttl <seconds>                 Time to live (default 86400)
-  deliver <id>                    Deliver encrypted content to claimer
+  chain                              Show prayer chain stats
+  init                               Initialize the prayer chain
+  register "<name>" "<skills>"       Register (auto-derives encryption key)
+  agent [wallet]                     Show agent profile + encryption key
+
+  post "<content>" [options]         Post a private prayer (hash-only on-chain)
+    --type <type>                      knowledge|compute|review|signal|collaboration
+    --bounty <SOL>                     SOL bounty (e.g. 0.01)
+    --ttl <seconds>                    Time to live (default 86400)
+    --claimers <n>                     Max collaborators (1-10, default 1)
+
   list [--status <s>] [--limit <n>]  List prayers
-  show <id>                       Show prayer details
-  claim <id>                      Claim a prayer
-  answer <id> "<answer>"          Answer with encrypted reply
-  confirm <id>                    Confirm an answer (requester only)
-  cancel <id>                     Cancel an open prayer
-  unclaim <id>                    Unclaim a prayer
+  show <id>                          Show prayer details + claims
+  claims <id>                        List all claims for a prayer
+
+  claim <id>                         Claim a prayer (creates Claim PDA)
+  deliver <id> [--claimer <wallet>]  Deliver encrypted content (one or all)
+  answer <id> "<answer>"             Answer with encrypted reply
+  confirm <id>                       Confirm — bounty splits among all claimers
+  cancel <id>                        Cancel an open prayer (0 claims only)
+  unclaim <id> [--claimer <wallet>]  Remove a claim (self or expired)
+  close <id>                         Close resolved prayer, reclaim rent
 
 Privacy:
   🔐 No plaintext ever touches the blockchain
   🔐 Content encrypted with DH shared secret (asker ↔ claimer)
+  🔐 Each claimer gets uniquely encrypted content delivery
   🔐 Encryption key derived from your Solana wallet (no extra keys)
   🔐 On-chain: only SHA-256 hashes + encrypted blobs in events
 
 Environment:
-  SOLANA_RPC_URL                  RPC endpoint (default: http://localhost:8899)
+  SOLANA_RPC_URL                     RPC endpoint (default: http://localhost:8899)
       `.trim());
   }
 }
