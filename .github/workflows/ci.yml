@@ -96,10 +96,9 @@ jobs:
             ~/.cargo/git/db/
             ~/.local/share/solana/
             ~/.avm/
-            target/
-          key: ${{ runner.os }}-solana-anchor-${{ hashFiles('**/Cargo.lock') }}-v2
+          key: ${{ runner.os }}-solana-anchor-${{ hashFiles('**/Cargo.toml') }}-v3
           restore-keys: |
-            ${{ runner.os }}-solana-anchor-
+            ${{ runner.os }}-solana-anchor-v3-
 
       - name: Install Solana CLI
         run: |
@@ -238,9 +237,10 @@ jobs:
             echo $PATH
             echo ""
 
-            # Remove Cargo.lock files and let anchor build regenerate them
+            # Remove any Cargo.lock files (including from cache)
             echo "Removing old Cargo.lock files..."
-            rm -f Cargo.lock programs/*/Cargo.lock
+            find . -name "Cargo.lock" -type f -delete
+            echo "Removed all Cargo.lock files"
 
             echo "Starting build (will regenerate Cargo.lock)..."
             anchor build
