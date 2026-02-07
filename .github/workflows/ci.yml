@@ -222,7 +222,12 @@ jobs:
       - name: Build Anchor program
         env:
           CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+          RUSTUP_TOOLCHAIN: nightly
         run: |
+          # Force nightly toolchain
+          rustup default nightly
+          rustup show
+
           # Add Solana, Cargo, and AVM to PATH
           export PATH="$HOME/.local/share/solana/install/active_release/bin:$HOME/.cargo/bin:$HOME/.avm/bin:$PATH"
 
