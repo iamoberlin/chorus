@@ -124,6 +124,7 @@ const plugin = {
         console.log(`  Choirs:           ${config.choirs.enabled ? "✅ enabled" : "❌ disabled"}`);
         console.log(`  Daemon:           ${daemonConfig.enabled ? "✅ enabled" : "❌ disabled"}`);
         console.log(`  Purpose Research: ${purposeResearchConfig.enabled ? "✅ enabled" : "❌ disabled"}`);
+        console.log(`  Prayer Chain:     ${config.prayers.enabled ? "✅ enabled" : "❌ disabled"}${config.prayers.enabled ? ` (${config.prayers.autonomous ? "🤖 autonomous" : "👤 manual"})` : ""}`);
         console.log(`  Active Purposes:  ${activePurposes.length}`);
         console.log(`  Research Purposes: ${researchPurposes.length}`);
         if (daemon) {
@@ -921,10 +922,13 @@ const plugin = {
       // Prayer Chain — On-Chain (Solana)
       const prayerCmd = program.command("pray").description("Prayer chain — on-chain agent coordination (Solana)");
 
-      // Lazy-load the Solana client to avoid import cost when not using pray commands
+      // Lazy-load the Solana client using plugin config
       async function getSolanaClient() {
         const { ChorusPrayerClient } = await import("./src/prayers/solana.js");
-        const rpcUrl = process.env.SOLANA_RPC_URL || "http://localhost:8899";
+        const rpcUrl = process.env.SOLANA_RPC_URL || config.prayers.rpcUrl;
+        if (config.prayers.keypairPath) {
+          return ChorusPrayerClient.fromKeypairFile(rpcUrl, config.prayers.keypairPath);
+        }
         return ChorusPrayerClient.fromDefaultKeypair(rpcUrl);
       }
 
@@ -968,7 +972,9 @@ const plugin = {
           console.log(`  Total Prayers:  ${chain.totalPrayers}`);
           console.log(`  Total Answered: ${chain.totalAnswered}`);
           console.log(`  Total Agents:   ${chain.totalAgents}`);
-          console.log(`  RPC:            ${process.env.SOLANA_RPC_URL || "http://localhost:8899"}`);
+          console.log(`  Mode:           ${config.prayers.autonomous ? "🤖 Autonomous" : "👤 Manual (human approval)"}`);
+          console.log(`  Max Bounty:     ${config.prayers.maxBountySOL} SOL`);
+          console.log(`  RPC:            ${process.env.SOLANA_RPC_URL || config.prayers.rpcUrl}`);
           console.log("");
         });
 
@@ -1041,8 +1047,13 @@ const plugin = {
         .option("--ttl <seconds>", "Time to live in seconds", "86400")
         .action(async (content: string, options: { type: string; bounty: string; ttl: string }) => {
           const client = await getSolanaClient();
-          const bountyLamports = Math.round(parseFloat(options.bounty) * 1e9);
-          const ttl = parseInt(options.ttl);
+          const bountySOL = parseFloat(options.bounty);
+          if (bountySOL > config.prayers.maxBountySOL) {
+            console.error(`\n✗ Bounty ${bountySOL} SOL exceeds max ${config.prayers.maxBountySOL} SOL (set prayers.maxBountySOL in config)\n`);
+            return;
+          }
+          const bountyLamports = Math.round(bountySOL * 1e9);
+          const ttl = parseInt(options.ttl) || config.prayers.defaultTTL;
 
           console.log("\n🙏 Posting prayer...");
           console.log(`  Type:    ${options.type}`);

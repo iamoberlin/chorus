@@ -21,6 +21,14 @@ export interface ChorusConfig {
     defaultFrequency: number;
     defaultMaxFrequency: number;
   };
+  prayers: {
+    enabled: boolean;
+    rpcUrl: string;
+    autonomous: boolean;       // true = choirs can post/answer without human approval
+    maxBountySOL: number;      // safety cap per prayer (in SOL)
+    defaultTTL: number;        // default TTL in seconds
+    keypairPath: string;       // path to Solana keypair (empty = default CLI keypair)
+  };
 }
 
 /** Plugin config schema (from openclaw.yaml) */
@@ -37,6 +45,15 @@ export interface ChorusPluginConfig {
     dailyRunCap?: number;
     defaultFrequency?: number;
     defaultMaxFrequency?: number;
+  };
+  /** On-chain prayer config */
+  prayers?: {
+    enabled?: boolean;
+    rpcUrl?: string;
+    autonomous?: boolean;
+    maxBountySOL?: number;
+    defaultTTL?: number;
+    keypairPath?: string;
   };
 }
 
@@ -55,6 +72,14 @@ const DEFAULT_CONFIG: ChorusConfig = {
     dailyRunCap: 50,
     defaultFrequency: 6,
     defaultMaxFrequency: 24,
+  },
+  prayers: {
+    enabled: true,
+    rpcUrl: "http://localhost:8899",
+    autonomous: false,          // default: human approval required
+    maxBountySOL: 0.1,          // 0.1 SOL cap per prayer
+    defaultTTL: 86400,          // 24 hours
+    keypairPath: "",            // empty = use default Solana CLI keypair
   },
 };
 
@@ -83,6 +108,28 @@ export function loadChorusConfig(pluginConfig?: ChorusPluginConfig): ChorusConfi
   }
   if (pluginConfig.episodicRetentionDays !== undefined) {
     config.memory.episodicRetentionDays = pluginConfig.episodicRetentionDays;
+  }
+
+  // Prayers
+  if (pluginConfig.prayers) {
+    if (pluginConfig.prayers.enabled !== undefined) {
+      config.prayers.enabled = pluginConfig.prayers.enabled;
+    }
+    if (pluginConfig.prayers.rpcUrl) {
+      config.prayers.rpcUrl = pluginConfig.prayers.rpcUrl;
+    }
+    if (pluginConfig.prayers.autonomous !== undefined) {
+      config.prayers.autonomous = pluginConfig.prayers.autonomous;
+    }
+    if (pluginConfig.prayers.maxBountySOL !== undefined) {
+      config.prayers.maxBountySOL = pluginConfig.prayers.maxBountySOL;
+    }
+    if (pluginConfig.prayers.defaultTTL !== undefined) {
+      config.prayers.defaultTTL = pluginConfig.prayers.defaultTTL;
+    }
+    if (pluginConfig.prayers.keypairPath) {
+      config.prayers.keypairPath = pluginConfig.prayers.keypairPath;
+    }
   }
 
   // Purpose Research
