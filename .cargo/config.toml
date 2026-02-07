@@ -1,0 +1,3 @@
+[unstable]
+# Enable Cargo.lock version 4 support on nightly
+next-lockfile-bump = true
