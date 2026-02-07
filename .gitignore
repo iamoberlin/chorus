@@ -14,3 +14,7 @@ test-ledger/
 .prayer-texts.json
 Cargo.lock
 programs/**/Cargo.lock
+
+# Private keys - NEVER commit
+keys/
+*.keypair.json
