@@ -10,3 +10,4 @@ target/
 
 # Package locks (using bun.lock)
 package-lock.json
+test-ledger/
