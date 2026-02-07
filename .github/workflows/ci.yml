@@ -102,7 +102,17 @@ jobs:
       - name: Install Solana CLI
         run: |
           sh -c "$(curl -sSfL https://release.solana.com/stable/install)"
-          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+
+          # Verify installation
+          if [ -d "$HOME/.local/share/solana/install/active_release/bin" ]; then
+            echo "✓ Solana CLI installed"
+            ls -la "$HOME/.local/share/solana/install/active_release/bin/"
+            echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
+          else
+            echo "Error: Solana installation directory not found"
+            find $HOME/.local/share/solana -name solana 2>/dev/null || echo "No solana binary found"
+            exit 1
+          fi
 
       - name: Install Anchor via AVM
         run: |
@@ -147,9 +157,14 @@ jobs:
             echo "Anchor version:"
             anchor --version
             echo "Solana version:"
-            solana --version
+            which solana || echo "Solana not in PATH, checking install location..."
+            ls -la "$HOME/.local/share/solana/install/active_release/bin/" || echo "Solana bin directory not found"
+            "$HOME/.local/share/solana/install/active_release/bin/solana" --version || solana --version
             echo "Rust version:"
             rustc --version
+            echo ""
+            echo "PATH:"
+            echo $PATH
             echo ""
             echo "Starting build..."
             anchor build --verbose
