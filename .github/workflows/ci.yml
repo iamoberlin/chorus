@@ -81,10 +81,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: "1.85.0"
+      - name: Setup Rust (nightly for Cargo.lock v4 support)
+        uses: dtolnay/rust-toolchain@nightly
 
       - name: Cache Cargo, Anchor, and Solana
         uses: actions/cache@v4
@@ -218,6 +216,8 @@ jobs:
           fi
 
       - name: Build Anchor program
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: "true"
         run: |
           # Add Solana, Cargo, and AVM to PATH
           export PATH="$HOME/.local/share/solana/install/active_release/bin:$HOME/.cargo/bin:$HOME/.avm/bin:$PATH"
@@ -227,20 +227,16 @@ jobs:
             echo "Anchor version:"
             anchor --version
             echo "Solana version:"
-            which solana || echo "Solana not in PATH, checking install location..."
-            ls -la "$HOME/.local/share/solana/install/active_release/bin/" || echo "Solana bin directory not found"
             "$HOME/.local/share/solana/install/active_release/bin/solana" --version || solana --version
             echo "Rust version:"
             rustc --version
             echo ""
 
-            # Remove any Cargo.lock files (including from cache)
-            echo "Removing old Cargo.lock files..."
+            # Delete any existing Cargo.lock files
             find . -name "Cargo.lock" -type f -delete
 
             echo "Starting build..."
-            # Build with explicit lockfile version 3 support
-            CARGO_RESOLVER_INCOMPATIBLE_RUST_VERSIONS=fallback anchor build
+            anchor build
             echo "✓ Anchor build successful"
             ls -lh target/deploy/*.so
 
