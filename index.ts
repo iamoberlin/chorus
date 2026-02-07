@@ -385,11 +385,25 @@ const plugin = {
                       const jsonStart = stdout.indexOf('{');
                       const jsonStr = jsonStart >= 0 ? stdout.slice(jsonStart) : '{}';
                       const json = JSON.parse(jsonStr);
-                      const text = json.result?.payloads?.[0]?.text || '';
+                      const payloads = json.result?.payloads || [];
+                      const text = payloads.map((p: any) => p.text || '').filter(Boolean).join('\n\n') || '';
                       const duration = json.result?.meta?.durationMs || 0;
                       contextStore.set(`${choirId}:d${day}`, text.slice(0, 2000)); // Keep 2KB of response
                       successfulRuns++;
                       console.log(` ✓ (${(duration/1000).toFixed(1)}s)`);
+
+                      // Deliver Archangels output via iMessage (same as scheduler)
+                      if (choirId === 'archangels' && text.length > 20 && !/^(HEARTBEAT_OK|NO_REPLY)\s*$/i.test(text.trim())) {
+                        const truncated = text.length > 1500 ? text.slice(0, 1500) + '…' : text;
+                        const msg = `${choir.emoji} ${choir.name}\n\n${truncated}`;
+                        const imsgResult = spawnSync('imsg', ['send', '--to', 'REDACTED_PHONE', '--text', msg], {
+                          encoding: 'utf-8',
+                          timeout: 15000,
+                        });
+                        if (imsgResult.status === 0) {
+                          console.log(`   📨 Delivered ${choir.name} via iMessage`);
+                        }
+                      }
                     } catch {
                       contextStore.set(`${choirId}:d${day}`, result.stdout?.slice(-2000) || `[${choir.name} completed]`);
                       successfulRuns++;
