@@ -42,6 +42,10 @@ describe("chorus-prayers", () => {
     );
   }
 
+  function sha256(text: string): number[] {
+    return Array.from(createHash("sha256").update(text).digest());
+  }
+
   before(async () => {
     // Fund agent2 for testing
     const sig = await provider.connection.requestAirdrop(
@@ -122,10 +126,14 @@ describe("chorus-prayers", () => {
     const [agentPda] = getAgentPDA(authority.publicKey);
     const [prayerPda] = getPrayerPDA(0);
 
+    const content = "What is the current SOFR rate and 7-day trend?";
+    const contentHash = sha256(content);
+
     await program.methods
       .postPrayer(
         { knowledge: {} },
-        "What is the current SOFR rate and 7-day trend?",
+        content,
+        contentHash,
         new anchor.BN(0), // no bounty
         new anchor.BN(86400) // 24h TTL
       )
@@ -140,7 +148,7 @@ describe("chorus-prayers", () => {
 
     const prayer = await (program.account as any).prayer.fetch(prayerPda);
     assert.equal(prayer.id.toNumber(), 0);
-    assert.equal(prayer.content, "What is the current SOFR rate and 7-day trend?");
+    assert.deepEqual(prayer.contentHash, contentHash);
     assert.ok(prayer.requester.equals(authority.publicKey));
     assert.deepEqual(prayer.status, { open: {} });
     assert.equal(prayer.rewardLamports.toNumber(), 0);
@@ -158,11 +166,14 @@ describe("chorus-prayers", () => {
     const [prayerPda] = getPrayerPDA(1);
 
     const bounty = 0.01 * LAMPORTS_PER_SOL; // 0.01 SOL
+    const content = "Red-team my thesis: ETH breaks $2,400 by March 2026";
+    const contentHash = sha256(content);
 
     await program.methods
       .postPrayer(
         { review: {} },
-        "Red-team my thesis: ETH breaks $2,400 by March 2026",
+        content,
+        contentHash,
         new anchor.BN(bounty),
         new anchor.BN(172800) // 48h TTL
       )
@@ -179,6 +190,7 @@ describe("chorus-prayers", () => {
     assert.equal(prayer.id.toNumber(), 1);
     assert.equal(prayer.rewardLamports.toNumber(), bounty);
     assert.deepEqual(prayer.status, { open: {} });
+    assert.deepEqual(prayer.contentHash, contentHash);
   });
 
   it("Agent 2 claims prayer 0", async () => {
@@ -206,12 +218,10 @@ describe("chorus-prayers", () => {
     const [agentPda] = getAgentPDA(agent2.publicKey);
 
     const answer = "SOFR is currently at 4.55%. 7-day trend: stable, down 2bps from last week.";
-    const hash = Array.from(
-      createHash("sha256").update(answer).digest()
-    );
+    const answerHash = sha256(answer);
 
     await program.methods
-      .answerPrayer(answer, hash)
+      .answerPrayer(answer, answerHash)
       .accounts({
         prayerChain: prayerChainPda,
         prayer: prayerPda,
@@ -223,7 +233,7 @@ describe("chorus-prayers", () => {
 
     const prayer = await (program.account as any).prayer.fetch(prayerPda);
     assert.deepEqual(prayer.status, { fulfilled: {} });
-    assert.equal(prayer.answer, answer);
+    assert.deepEqual(prayer.answerHash, answerHash);
     assert.ok(prayer.fulfilledAt.toNumber() > 0);
 
     const agent = await (program.account as any).agent.fetch(agentPda);
@@ -313,10 +323,14 @@ describe("chorus-prayers", () => {
     const [agentPda] = getAgentPDA(authority.publicKey);
     const [prayerPda2] = getPrayerPDA(2);
 
+    const content = "Run a backtest on 2Y ETH data";
+    const contentHash = sha256(content);
+
     await program.methods
       .postPrayer(
         { compute: {} },
-        "Run a backtest on 2Y ETH data",
+        content,
+        contentHash,
         new anchor.BN(0),
         new anchor.BN(86400)
       )

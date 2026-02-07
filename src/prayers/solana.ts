@@ -60,13 +60,12 @@ export interface PrayerAccount {
   id: number;
   requester: PublicKey;
   prayerType: PrayerType;
-  content: string;
+  contentHash: number[];         // SHA-256 of content (full text off-chain)
   rewardLamports: number;
   status: PrayerStatus;
   claimer: PublicKey;
   claimedAt: number;
-  answer: string;
-  answerHash: number[];
+  answerHash: number[];          // SHA-256 of answer (full text off-chain)
   createdAt: number;
   expiresAt: number;
   fulfilledAt: number;
@@ -189,12 +188,11 @@ export class ChorusPrayerClient {
         id: account.id.toNumber(),
         requester: account.requester,
         prayerType: Object.keys(account.prayerType)[0] as unknown as PrayerType,
-        content: account.content,
+        contentHash: account.contentHash,
         rewardLamports: account.rewardLamports.toNumber(),
         status: Object.keys(account.status)[0] as unknown as PrayerStatus,
         claimer: account.claimer,
         claimedAt: account.claimedAt.toNumber(),
-        answer: account.answer,
         answerHash: account.answerHash,
         createdAt: account.createdAt.toNumber(),
         expiresAt: account.expiresAt.toNumber(),
@@ -271,10 +269,13 @@ export class ChorusPrayerClient {
     const [agentPda] = getAgentPDA(this.wallet);
     const [prayerPda] = getPrayerPDA(prayerId);
 
-    const typeArg = { [PrayerType[prayerType].toLowerCase()]: {} };
+    // Handle both enum values and string names
+    const typeName = typeof prayerType === "string" ? prayerType.toLowerCase() : PrayerType[prayerType].toLowerCase();
+    const typeArg = { [typeName]: {} };
+    const contentHash = Array.from(createHash("sha256").update(content).digest());
 
     const tx = await this.program.methods
-      .postPrayer(typeArg, content, new BN(rewardLamports), new BN(ttlSeconds))
+      .postPrayer(typeArg, content, contentHash, new BN(rewardLamports), new BN(ttlSeconds))
       .accounts({
         prayerChain: prayerChainPda,
         requesterAgent: agentPda,

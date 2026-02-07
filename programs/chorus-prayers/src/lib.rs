@@ -63,19 +63,18 @@ impl Agent {
     pub const INIT_SPACE: usize = 32 + 36 + 260 + 8 + 8 + 8 + 8 + 8 + 1;
 }
 
-/// A prayer (request for help)
+/// A prayer (request for help) — compact on-chain, full text off-chain
 #[account]
 pub struct Prayer {
     pub id: u64,
     pub requester: Pubkey,
     pub prayer_type: PrayerType,
-    pub content: String,         // max 512
+    pub content_hash: [u8; 32],  // SHA-256 of full content (text stored off-chain)
     pub reward_lamports: u64,
     pub status: PrayerStatus,
     pub claimer: Pubkey,         // Pubkey::default() if none
     pub claimed_at: i64,         // When claimed (for timeout enforcement)
-    pub answer: String,          // max 512, empty if unanswered
-    pub answer_hash: [u8; 32],   // SHA-256 of full answer
+    pub answer_hash: [u8; 32],   // SHA-256 of full answer (text stored off-chain)
     pub created_at: i64,
     pub expires_at: i64,
     pub fulfilled_at: i64,       // 0 if not fulfilled
@@ -83,10 +82,49 @@ pub struct Prayer {
 }
 
 impl Prayer {
-    pub const MAX_CONTENT: usize = 512;
-    pub const MAX_ANSWER: usize = 512;
-    // 8 + 32 + 1 + (4+512) + 8 + 1 + 32 + 8 + (4+512) + 32 + 8 + 8 + 8 + 1
-    pub const INIT_SPACE: usize = 8 + 32 + 1 + 516 + 8 + 1 + 32 + 8 + 516 + 32 + 8 + 8 + 8 + 1;
+    // 8 + 32 + 1 + 32 + 8 + 1 + 32 + 8 + 32 + 8 + 8 + 8 + 1 = 179
+    pub const INIT_SPACE: usize = 8 + 32 + 1 + 32 + 8 + 1 + 32 + 8 + 32 + 8 + 8 + 8 + 1;
+}
+
+// ── Events (for off-chain indexing) ───────────────────────
+
+#[event]
+pub struct PrayerPosted {
+    pub id: u64,
+    pub requester: Pubkey,
+    pub prayer_type: PrayerType,
+    pub content: String,         // Full text in the event log (cheap, not in account)
+    pub content_hash: [u8; 32],
+    pub reward_lamports: u64,
+    pub ttl_seconds: i64,
+}
+
+#[event]
+pub struct PrayerAnswered {
+    pub id: u64,
+    pub answerer: Pubkey,
+    pub answer: String,          // Full text in the event log
+    pub answer_hash: [u8; 32],
+}
+
+#[event]
+pub struct PrayerConfirmed {
+    pub id: u64,
+    pub requester: Pubkey,
+    pub answerer: Pubkey,
+    pub reward_lamports: u64,
+}
+
+#[event]
+pub struct PrayerClaimed {
+    pub id: u64,
+    pub claimer: Pubkey,
+}
+
+#[event]
+pub struct PrayerCancelled {
+    pub id: u64,
+    pub requester: Pubkey,
 }
 
 // ── Instructions ──────────────────────────────────────────
@@ -133,14 +171,15 @@ pub mod chorus_prayers {
     }
 
     /// Post a new prayer (request for help)
+    /// Content string is emitted as an event for off-chain indexing but NOT stored in the account.
     pub fn post_prayer(
         ctx: Context<PostPrayer>,
         prayer_type: PrayerType,
         content: String,
+        content_hash: [u8; 32],
         reward_lamports: u64,
         ttl_seconds: i64,
     ) -> Result<()> {
-        require!(content.len() <= Prayer::MAX_CONTENT, PrayerError::ContentTooLong);
         require!(ttl_seconds > 0 && ttl_seconds <= 604_800, PrayerError::InvalidTTL); // max 7 days
 
         let now = Clock::get()?.unix_timestamp;
@@ -151,12 +190,11 @@ pub mod chorus_prayers {
         prayer.id = prayer_id;
         prayer.requester = ctx.accounts.requester.key();
         prayer.prayer_type = prayer_type;
-        prayer.content = content;
+        prayer.content_hash = content_hash;
         prayer.reward_lamports = reward_lamports;
         prayer.status = PrayerStatus::Open;
         prayer.claimer = Pubkey::default();
         prayer.claimed_at = 0;
-        prayer.answer = String::new();
         prayer.answer_hash = [0u8; 32];
         prayer.created_at = now;
         prayer.expires_at = now.checked_add(ttl_seconds).unwrap();
@@ -183,6 +221,17 @@ pub mod chorus_prayers {
         let agent = &mut ctx.accounts.requester_agent;
         agent.prayers_posted = agent.prayers_posted.checked_add(1).unwrap();
 
+        // Emit event with full content for off-chain indexing
+        emit!(PrayerPosted {
+            id: prayer_id,
+            requester: ctx.accounts.requester.key(),
+            prayer_type,
+            content,
+            content_hash,
+            reward_lamports,
+            ttl_seconds,
+        });
+
         Ok(())
     }
 
@@ -202,17 +251,21 @@ pub mod chorus_prayers {
         prayer.claimer = ctx.accounts.claimer.key();
         prayer.claimed_at = now;
 
+        emit!(PrayerClaimed {
+            id: prayer.id,
+            claimer: ctx.accounts.claimer.key(),
+        });
+
         Ok(())
     }
 
     /// Answer a claimed prayer
+    /// Answer string is emitted as an event but NOT stored in the account.
     pub fn answer_prayer(
         ctx: Context<AnswerPrayer>,
         answer: String,
         answer_hash: [u8; 32],
     ) -> Result<()> {
-        require!(answer.len() <= Prayer::MAX_ANSWER, PrayerError::AnswerTooLong);
-
         let prayer = &mut ctx.accounts.prayer;
         let now = Clock::get()?.unix_timestamp;
 
@@ -224,7 +277,6 @@ pub mod chorus_prayers {
         );
 
         prayer.status = PrayerStatus::Fulfilled;
-        prayer.answer = answer;
         prayer.answer_hash = answer_hash;
         prayer.fulfilled_at = now;
 
@@ -235,6 +287,14 @@ pub mod chorus_prayers {
 
         let chain = &mut ctx.accounts.prayer_chain;
         chain.total_answered = chain.total_answered.checked_add(1).unwrap();
+
+        // Emit event with full answer for off-chain indexing
+        emit!(PrayerAnswered {
+            id: prayer.id,
+            answerer: ctx.accounts.answerer.key(),
+            answer,
+            answer_hash,
+        });
 
         Ok(())
     }
@@ -277,15 +337,20 @@ pub mod chorus_prayers {
                 .unwrap();
         }
 
+        emit!(PrayerConfirmed {
+            id: prayer.id,
+            requester: ctx.accounts.requester.key(),
+            answerer: prayer.claimer,
+            reward_lamports: prayer.reward_lamports,
+        });
+
         Ok(())
     }
 
     /// Cancel an OPEN prayer only (requester only).
-    /// Cannot cancel a claimed prayer — use unclaim or wait for timeout.
     pub fn cancel_prayer(ctx: Context<CancelPrayer>) -> Result<()> {
         let prayer = &mut ctx.accounts.prayer;
 
-        // FIX #1: Only allow cancel on Open prayers, not Claimed
         require!(
             prayer.status == PrayerStatus::Open,
             PrayerError::CannotCancel
@@ -312,12 +377,15 @@ pub mod chorus_prayers {
                 .unwrap();
         }
 
+        emit!(PrayerCancelled {
+            id: prayer.id,
+            requester: ctx.accounts.requester.key(),
+        });
+
         Ok(())
     }
 
-    /// Unclaim a prayer. Two cases:
-    /// 1. Claimer voluntarily abandons
-    /// 2. Anyone can unclaim if claim has timed out (>1 hour)
+    /// Unclaim a prayer. Claimer voluntarily, or anyone after timeout.
     pub fn unclaim_prayer(ctx: Context<UnclaimPrayer>) -> Result<()> {
         let prayer = &mut ctx.accounts.prayer;
         let now = Clock::get()?.unix_timestamp;
@@ -327,7 +395,6 @@ pub mod chorus_prayers {
         let is_claimer = prayer.claimer == ctx.accounts.caller.key();
         let claim_expired = now > prayer.claimed_at.checked_add(CLAIM_TIMEOUT_SECONDS).unwrap();
 
-        // FIX #2: Either the claimer unclaims, or anyone can unclaim after timeout
         require!(
             is_claimer || claim_expired,
             PrayerError::NotClaimer
@@ -341,7 +408,6 @@ pub mod chorus_prayers {
     }
 
     /// Close a resolved prayer and return rent to requester.
-    /// Only works on Confirmed, Cancelled, or Expired prayers.
     pub fn close_prayer(ctx: Context<ClosePrayer>) -> Result<()> {
         let prayer = &ctx.accounts.prayer;
 
@@ -371,10 +437,6 @@ pub mod chorus_prayers {
                 .unwrap();
         }
 
-        // Anchor `close` constraint handles the rest:
-        // - Transfers remaining lamports (rent) to requester
-        // - Zeroes data
-        // - Assigns to system program
         Ok(())
     }
 }
@@ -452,8 +514,6 @@ pub struct PostPrayer<'info> {
 
     pub system_program: Program<'info, System>,
 }
-
-// FIX #4: PDA seed validation on all prayer mutation contexts
 
 #[derive(Accounts)]
 #[instruction()]
@@ -555,11 +615,9 @@ pub struct UnclaimPrayer<'info> {
     )]
     pub prayer: Account<'info, Prayer>,
 
-    /// Can be the claimer (voluntary) or anyone (after timeout)
     pub caller: Signer<'info>,
 }
 
-// FIX #3: Close prayer instruction to reclaim rent
 #[derive(Accounts)]
 #[instruction()]
 pub struct ClosePrayer<'info> {
@@ -584,10 +642,6 @@ pub enum PrayerError {
     NameTooLong,
     #[msg("Skills exceeds 256 characters")]
     SkillsTooLong,
-    #[msg("Content exceeds 512 characters")]
-    ContentTooLong,
-    #[msg("Answer exceeds 512 characters")]
-    AnswerTooLong,
     #[msg("TTL must be between 1 and 604800 seconds")]
     InvalidTTL,
     #[msg("Prayer is not open")]

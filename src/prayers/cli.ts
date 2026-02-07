@@ -20,9 +20,58 @@
 
 import { ChorusPrayerClient, PrayerType, getPrayerChainPDA, getAgentPDA, getPrayerPDA } from "./solana.js";
 import { PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
+import { createHash } from "crypto";
+import * as fs from "fs";
+import * as path from "path";
+import { fileURLToPath } from "url";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Default to localhost; override with SOLANA_RPC_URL env
 const RPC_URL = process.env.SOLANA_RPC_URL || "http://localhost:8899";
+
+// ── Local text store (off-chain content cache) ────────────
+const STORE_PATH = path.join(__dirname, "../../.prayer-texts.json");
+
+interface TextStore {
+  [prayerId: string]: { content?: string; answer?: string };
+}
+
+function loadTextStore(): TextStore {
+  try {
+    return JSON.parse(fs.readFileSync(STORE_PATH, "utf-8"));
+  } catch {
+    return {};
+  }
+}
+
+function saveTextStore(store: TextStore): void {
+  fs.writeFileSync(STORE_PATH, JSON.stringify(store, null, 2));
+}
+
+function storeContent(prayerId: number, content: string): void {
+  const store = loadTextStore();
+  if (!store[prayerId]) store[prayerId] = {};
+  store[prayerId].content = content;
+  saveTextStore(store);
+}
+
+function storeAnswer(prayerId: number, answer: string): void {
+  const store = loadTextStore();
+  if (!store[prayerId]) store[prayerId] = {};
+  store[prayerId].answer = answer;
+  saveTextStore(store);
+}
+
+function getStoredText(prayerId: number): { content?: string; answer?: string } {
+  const store = loadTextStore();
+  return store[prayerId] || {};
+}
+
+function hashToHex(hash: number[]): string {
+  return Buffer.from(hash).toString("hex").slice(0, 16) + "…";
+}
 
 function getClient(): ChorusPrayerClient {
   return ChorusPrayerClient.fromDefaultKeypair(RPC_URL);
@@ -192,6 +241,7 @@ async function main() {
           ttl
         );
         console.log(`  ✓ Prayer #${prayerId} posted (tx: ${tx.slice(0, 16)}...)`);
+        storeContent(prayerId, content);
       } catch (err: any) {
         console.error(`  ✗ ${err.message}`);
       }
@@ -238,11 +288,14 @@ async function main() {
           CANCELLED: "❌",
         }[status] || "❓";
 
+        const texts = getStoredText(prayer.id);
+        const contentDisplay = texts.content || `[hash: ${hashToHex(prayer.contentHash)}]`;
+
         console.log(`  ${statusIcon} #${prayer.id} [${status}] (${type})${bounty}`);
-        console.log(`     ${prayer.content.slice(0, 70)}${prayer.content.length > 70 ? "..." : ""}`);
+        console.log(`     ${contentDisplay.slice(0, 70)}${contentDisplay.length > 70 ? "..." : ""}`);
         console.log(`     From: ${shortKey(prayer.requester)} | Created: ${formatTime(prayer.createdAt)}`);
-        if (prayer.answer) {
-          console.log(`     Answer: ${prayer.answer.slice(0, 70)}${prayer.answer.length > 70 ? "..." : ""}`);
+        if (texts.answer) {
+          console.log(`     💬 ${texts.answer.slice(0, 70)}${texts.answer.length > 70 ? "..." : ""}`);
         }
         shown++;
       }
@@ -263,28 +316,33 @@ async function main() {
         return;
       }
 
+      const texts = getStoredText(id);
+
       console.log("");
       console.log(`🙏 Prayer #${prayer.id}`);
       console.log("═".repeat(50));
-      console.log(`  Status:     ${formatStatus(prayer.status)}`);
-      console.log(`  Type:       ${formatType(prayer.prayerType)}`);
-      console.log(`  Requester:  ${shortKey(prayer.requester)}`);
-      console.log(`  Bounty:     ${formatSOL(prayer.rewardLamports)}`);
-      console.log(`  Created:    ${formatTime(prayer.createdAt)}`);
-      console.log(`  Expires:    ${formatTime(prayer.expiresAt)}`);
+      console.log(`  Status:       ${formatStatus(prayer.status)}`);
+      console.log(`  Type:         ${formatType(prayer.prayerType)}`);
+      console.log(`  Requester:    ${shortKey(prayer.requester)}`);
+      console.log(`  Bounty:       ${formatSOL(prayer.rewardLamports)}`);
+      console.log(`  Created:      ${formatTime(prayer.createdAt)}`);
+      console.log(`  Expires:      ${formatTime(prayer.expiresAt)}`);
+      console.log(`  Content Hash: ${hashToHex(prayer.contentHash)}`);
       console.log("");
       console.log("  Content:");
-      console.log(`    ${prayer.content}`);
+      console.log(`    ${texts.content || "(off-chain — not in local cache)"}`);
       if (prayer.claimer.toBase58() !== "11111111111111111111111111111111") {
         console.log("");
-        console.log(`  Claimer:    ${shortKey(prayer.claimer)}`);
-        console.log(`  Claimed at: ${formatTime(prayer.claimedAt)}`);
+        console.log(`  Claimer:      ${shortKey(prayer.claimer)}`);
+        console.log(`  Claimed at:   ${formatTime(prayer.claimedAt)}`);
       }
-      if (prayer.answer) {
+      const zeroHash = prayer.answerHash.every((b: number) => b === 0);
+      if (!zeroHash) {
         console.log("");
+        console.log(`  Answer Hash:  ${hashToHex(prayer.answerHash)}`);
         console.log("  Answer:");
-        console.log(`    ${prayer.answer}`);
-        console.log(`  Fulfilled:  ${formatTime(prayer.fulfilledAt)}`);
+        console.log(`    ${texts.answer || "(off-chain — not in local cache)"}`);
+        console.log(`  Fulfilled:    ${formatTime(prayer.fulfilledAt)}`);
       }
       console.log("");
       break;
@@ -319,6 +377,7 @@ async function main() {
       try {
         const tx = await client.answerPrayer(id, answer);
         console.log(`  ✓ Answered (tx: ${tx.slice(0, 16)}...)`);
+        storeAnswer(id, answer);
       } catch (err: any) {
         console.error(`  ✗ ${err.message}`);
       }
