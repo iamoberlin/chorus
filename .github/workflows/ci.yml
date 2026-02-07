@@ -20,49 +20,8 @@ jobs:
         with:
           node-version: '22'
 
-      - name: Setup Bun
-        uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: latest
-
       - name: Install dependencies
-        run: bun install
-
-      - name: Build TypeScript
-        run: bun run index.ts --help || echo "No build script needed"
-
-      - name: Install OpenClaw
-        run: |
-          # Install OpenClaw (ignore exit code due to /dev/tty issue in CI)
-          curl -fsSL https://openclaw.ai/install.sh | bash || true
-
-          # Add both npm global and OpenClaw to PATH
-          echo "$HOME/.npm-global/bin" >> $GITHUB_PATH
-          echo "$HOME/.openclaw/bin" >> $GITHUB_PATH
-
-      - name: Verify OpenClaw installation
-        run: |
-          # Reload PATH
-          export PATH="$HOME/.npm-global/bin:$HOME/.openclaw/bin:$PATH"
-
-          # Check if openclaw is accessible
-          which openclaw || echo "openclaw not in PATH, checking install location..."
-          ls -la $HOME/.npm-global/bin/ || echo "npm-global bin not found"
-
-          # Try to get version
-          openclaw --version || (echo "Trying alternative path..." && $HOME/.npm-global/bin/openclaw --version)
-
-      - name: Install Chorus plugin from local directory
-        run: |
-          export PATH="$HOME/.npm-global/bin:$HOME/.openclaw/bin:$PATH"
-
-          # Create a local link for testing
-          mkdir -p $HOME/.openclaw/plugins
-          ln -s $GITHUB_WORKSPACE $HOME/.openclaw/plugins/chorus
-
-          echo "✓ Plugin linked for testing"
-          echo "Plugin location: $HOME/.openclaw/plugins/chorus"
-          ls -la $HOME/.openclaw/plugins/
+        run: npm install
 
       - name: Verify plugin structure
         run: |
@@ -70,200 +29,79 @@ jobs:
           test -f package.json && echo "✓ package.json exists"
           test -f index.ts && echo "✓ index.ts exists"
           test -f openclaw.plugin.json && echo "✓ openclaw.plugin.json exists"
+          test -f idl/chorus_prayers.json && echo "✓ IDL exists"
           echo "All required files present"
 
   build-solana:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Cache Cargo, Anchor, and Solana
+      - name: Cache Cargo and Solana tooling
         uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry/index/
             ~/.cargo/registry/cache/
             ~/.cargo/git/db/
-            ~/.local/share/solana/
-            ~/.avm/
-          key: ${{ runner.os }}-solana-anchor-${{ hashFiles('**/Cargo.toml') }}-v4
+            target/
+          key: ${{ runner.os }}-anchor-build-${{ hashFiles('programs/chorus-prayers/src/lib.rs', 'Cargo.toml') }}-v5
           restore-keys: |
-            ${{ runner.os }}-solana-anchor-v4-
+            ${{ runner.os }}-anchor-build-v5-
 
-      - name: Setup Rust (nightly for Cargo.lock v4 support)
+      - name: Setup Rust nightly
         uses: dtolnay/rust-toolchain@nightly
 
-      - name: Verify Rust version
+      - name: Install Solana CLI (Agave v3)
         run: |
-          rustc --version
-          cargo --version
+          echo "Installing Solana CLI v3 (Agave)..."
+          # Use agave installer for v3
+          curl -sSfL https://release.anza.xyz/stable/install | sh
+          echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
 
-      - name: Install Solana CLI
+      - name: Install Anchor CLI via cargo
         run: |
-          # Check if Solana is already cached
-          if [ -f "$HOME/.local/share/solana/install/active_release/bin/solana" ]; then
-            echo "✓ Solana CLI found in cache"
-            "$HOME/.local/share/solana/install/active_release/bin/solana" --version
-            echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
-          else
-            echo "Installing Solana CLI..."
-            MAX_RETRIES=3
-            RETRY_COUNT=0
-            SUCCESS=false
+          # Install AVM
+          cargo install --git https://github.com/coral-xyz/anchor avm --locked --force
+          
+          # Install Anchor 0.32.1
+          avm install 0.32.1
+          avm use 0.32.1 || ln -sf "$HOME/.avm/bin/anchor-0.32.1" "$HOME/.avm/bin/anchor"
+          echo "$HOME/.avm/bin" >> $GITHUB_PATH
 
-            while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ "$SUCCESS" = false ]; do
-              echo "Attempt $((RETRY_COUNT + 1)) of $MAX_RETRIES..."
-
-              # Download the install script
-              if curl -sSfL https://release.solana.com/stable/install -o /tmp/solana-install.sh; then
-                echo "✓ Downloaded install script"
-
-                # Execute the install script
-                if bash /tmp/solana-install.sh; then
-                  echo "✓ Install script executed successfully"
-
-                  # Verify the installation
-                  if [ -f "$HOME/.local/share/solana/install/active_release/bin/solana" ]; then
-                    SUCCESS=true
-                    echo "✓ Solana CLI installed successfully"
-                  else
-                    echo "Warning: Install script ran but binary not found"
-                  fi
-                else
-                  echo "Error: Install script execution failed"
-                fi
-
-                rm -f /tmp/solana-install.sh
-              else
-                echo "Error: Failed to download install script (SSL or network error)"
-              fi
-
-              if [ "$SUCCESS" = false ]; then
-                RETRY_COUNT=$((RETRY_COUNT + 1))
-                if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-                  echo "Waiting 10 seconds before retry..."
-                  sleep 10
-                fi
-              fi
-            done
-
-            # Fallback: Install from GitHub releases if official installer fails
-            if [ "$SUCCESS" = false ]; then
-              echo "Trying fallback: Installing from GitHub releases..."
-              SOLANA_VERSION="1.18.26"
-              SOLANA_RELEASE="v${SOLANA_VERSION}"
-
-              mkdir -p "$HOME/.local/share/solana/install/${SOLANA_VERSION}/bin"
-
-              if curl -L "https://github.com/solana-labs/solana/releases/download/${SOLANA_RELEASE}/solana-release-x86_64-unknown-linux-gnu.tar.bz2" -o /tmp/solana.tar.bz2; then
-                echo "✓ Downloaded Solana from GitHub releases"
-                tar -xjf /tmp/solana.tar.bz2 -C /tmp/
-                cp -r /tmp/solana-release/bin/* "$HOME/.local/share/solana/install/${SOLANA_VERSION}/bin/"
-
-                # Create active_release symlink
-                ln -sf "$HOME/.local/share/solana/install/${SOLANA_VERSION}" "$HOME/.local/share/solana/install/active_release"
-
-                if [ -f "$HOME/.local/share/solana/install/active_release/bin/solana" ]; then
-                  SUCCESS=true
-                  echo "✓ Solana installed successfully from GitHub releases"
-                fi
-
-                rm -rf /tmp/solana.tar.bz2 /tmp/solana-release
-              else
-                echo "Error: Fallback installation also failed"
-              fi
-            fi
-
-            if [ "$SUCCESS" = false ]; then
-              echo "Error: All installation methods failed"
-              exit 1
-            fi
-
-            echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
-          fi
-
-      - name: Install Anchor via AVM
+      - name: Verify toolchain
         run: |
-          echo "Setting up Anchor CLI via AVM..."
-
-          # Install AVM if not cached
-          if ! command -v avm &> /dev/null; then
-            echo "Installing AVM (Anchor Version Manager)..."
-            cargo install --git https://github.com/coral-xyz/anchor avm --locked --force
-          else
-            echo "✓ AVM found in cache"
-          fi
-
-          # Add AVM to PATH for this step
-          export PATH="$HOME/.avm/bin:$PATH"
-
-          # List installed versions
-          avm list || true
-
-          # Install Anchor 0.32.1 (always run to ensure it's available)
-          echo "Installing Anchor 0.32.1 via AVM..."
-          avm install 0.32.1 || echo "Install attempted (may already exist)"
-
-          # Manually set up anchor symlink to avoid interactive prompt
-          if [ -f "$HOME/.avm/bin/anchor-0.32.1" ]; then
-            echo "✓ Anchor 0.32.1 binary found, setting as active..."
-            ln -sf "$HOME/.avm/bin/anchor-0.32.1" "$HOME/.avm/bin/anchor"
-            anchor --version
-          else
-            echo "Error: Anchor 0.32.1 binary not found"
-            ls -la "$HOME/.avm/bin/" || true
-            exit 1
-          fi
+          export PATH="$HOME/.local/share/solana/install/active_release/bin:$HOME/.avm/bin:$PATH"
+          echo "Rust: $(rustc --version)"
+          echo "Solana: $(solana --version)"
+          echo "Anchor: $(anchor --version)"
 
       - name: Build Anchor program
         env:
-          CARGO_NET_GIT_FETCH_WITH_CLI: "true"
           RUSTUP_TOOLCHAIN: nightly
         run: |
-          # Force nightly toolchain
-          rustup default nightly
-          rustup show
+          export PATH="$HOME/.local/share/solana/install/active_release/bin:$HOME/.avm/bin:$PATH"
+          
+          # Remove any stale Cargo.lock (nightly may change lockfile format)
+          rm -f Cargo.lock programs/chorus-prayers/Cargo.lock
+          
+          anchor build
+          echo "✓ Build successful"
+          ls -lh target/deploy/*.so
 
-          # Add Solana, Cargo, and AVM to PATH
-          export PATH="$HOME/.local/share/solana/install/active_release/bin:$HOME/.cargo/bin:$HOME/.avm/bin:$PATH"
-
-          if [ -f "Anchor.toml" ]; then
-            echo "Building Anchor program..."
-            echo "Anchor version:"
-            anchor --version
-            echo "Solana version:"
-            "$HOME/.local/share/solana/install/active_release/bin/solana" --version || solana --version
-            echo "Rust version:"
-            rustc --version
-            echo ""
-
-            # Delete any existing Cargo.lock files
-            find . -name "Cargo.lock" -type f -delete
-
-            echo "Starting build..."
-            anchor build
-            echo "✓ Anchor build successful"
-            ls -lh target/deploy/*.so
-
-            # Sync IDL to checked-in location
-            cp target/idl/chorus_prayers.json idl/chorus_prayers.json
-            echo "✓ IDL synced to idl/"
-          else
-            echo "No Anchor.toml found, skipping Solana build"
-          fi
-
-      - name: Verify IDL matches
+      - name: Verify IDL consistency
         run: |
           if [ -f "idl/chorus_prayers.json" ] && [ -f "target/idl/chorus_prayers.json" ]; then
             if diff idl/chorus_prayers.json target/idl/chorus_prayers.json > /dev/null 2>&1; then
               echo "✓ IDL in idl/ matches build output"
             else
-              echo "⚠ IDL mismatch — idl/chorus_prayers.json differs from build output"
-              echo "Run: cp target/idl/chorus_prayers.json idl/chorus_prayers.json"
+              echo "⚠ IDL mismatch — checked-in IDL differs from build"
+              diff idl/chorus_prayers.json target/idl/chorus_prayers.json || true
+              echo ""
+              echo "Fix: cp target/idl/chorus_prayers.json idl/chorus_prayers.json"
               exit 1
             fi
           fi
