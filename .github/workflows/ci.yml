@@ -203,17 +203,17 @@ jobs:
           # List installed versions
           avm list || true
 
-          # Install Anchor 0.31.1 (always run to ensure it's available)
-          echo "Installing Anchor 0.31.1 via AVM..."
-          avm install 0.31.1 || echo "Install attempted (may already exist)"
+          # Install Anchor 0.32.1 (always run to ensure it's available)
+          echo "Installing Anchor 0.32.1 via AVM..."
+          avm install 0.32.1 || echo "Install attempted (may already exist)"
 
           # Manually set up anchor symlink to avoid interactive prompt
-          if [ -f "$HOME/.avm/bin/anchor-0.31.1" ]; then
-            echo "✓ Anchor 0.31.1 binary found, setting as active..."
-            ln -sf "$HOME/.avm/bin/anchor-0.31.1" "$HOME/.avm/bin/anchor"
+          if [ -f "$HOME/.avm/bin/anchor-0.32.1" ]; then
+            echo "✓ Anchor 0.32.1 binary found, setting as active..."
+            ln -sf "$HOME/.avm/bin/anchor-0.32.1" "$HOME/.avm/bin/anchor"
             anchor --version
           else
-            echo "Error: Anchor 0.31.1 binary not found"
+            echo "Error: Anchor 0.32.1 binary not found"
             ls -la "$HOME/.avm/bin/" || true
             exit 1
           fi
@@ -237,6 +237,12 @@ jobs:
             echo "PATH:"
             echo $PATH
             echo ""
+
+            # Handle Cargo.lock version 4 by regenerating with current cargo
+            echo "Regenerating Cargo.lock files..."
+            rm -f Cargo.lock programs/*/Cargo.lock
+            cargo generate-lockfile
+
             echo "Starting build..."
             anchor build
             echo "✓ Anchor build successful"
