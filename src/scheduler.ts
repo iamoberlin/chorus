@@ -21,91 +21,9 @@ interface AgentTurnResult {
   meta?: { durationMs?: number };
 }
 
-// ── Message delivery ────────────────────────────────────────
-// Choirs that should always deliver their output to the human
-const ALWAYS_DELIVER_CHOIRS = new Set(["archangels"]);
-
-// Choirs that deliver when output contains alert signals
-const ALERT_DELIVER_CHOIRS = new Set(["powers", "principalities", "virtues", "seraphim"]);
-
-// Patterns that indicate alert-worthy output
-const ALERT_PATTERNS = [
-  /\balert\b/i,
-  /\burgent\b/i,
-  /\bimmediate\s+attention\b/i,
-  /\btext\s+brandon\b/i,
-  /\bnotif(?:y|ied|ication)\b/i,
-  /🔴|⚠️|🚨/,
-  /\bthesis\s+(?:challenged|broken|invalidated)\b/i,
-  /\bposition\s+(?:at\s+risk|threatened)\b/i,
-];
-
-// Quiet hours: 11pm-7am ET — only truly urgent alerts
-function isQuietHours(): boolean {
-  // Use Intl to get the actual ET hour (handles EST/EDT correctly)
-  const etHour = parseInt(
-    new Intl.DateTimeFormat("en-US", {
-      hour: "numeric",
-      hour12: false,
-      timeZone: "America/New_York",
-    }).format(new Date()),
-    10
-  );
-  return etHour >= 23 || etHour < 7;
-}
-
-function hasAlertSignals(output: string): boolean {
-  return ALERT_PATTERNS.some(p => p.test(output));
-}
-
-function truncateForSms(text: string, maxLen = 1500): string {
-  if (text.length <= maxLen) return text;
-  return text.slice(0, maxLen) + "\n…(truncated)";
-}
-
-async function maybeDeliverOutput(choir: Choir, output: string, log: PluginLogger): Promise<void> {
-  // Skip empty/trivial outputs
-  if (!output || output.length < 20) return;
-  // Skip HEARTBEAT_OK or NO_REPLY
-  if (/^(HEARTBEAT_OK|NO_REPLY)\s*$/i.test(output.trim())) return;
-
-  const shouldDeliver =
-    ALWAYS_DELIVER_CHOIRS.has(choir.id) ||
-    (ALERT_DELIVER_CHOIRS.has(choir.id) && hasAlertSignals(output));
-
-  if (!shouldDeliver) return;
-
-  // Respect quiet hours for non-urgent
-  if (isQuietHours() && !(/🔴|🚨|\burgent\b/i.test(output))) {
-    log.info(`[chorus] Suppressing ${choir.name} delivery during quiet hours`);
-    return;
-  }
-
-  const header = `${choir.emoji} ${choir.name}`;
-  const message = `${header}\n\n${truncateForSms(output)}`;
-
-  try {
-    // Use imsg CLI to deliver (same as the channel config)
-    const imsgResult = await new Promise<{ status: number | null; stderr: string }>((resolve) => {
-      const child = spawn('imsg', ['send', '--to', 'REDACTED_PHONE', '--text', message], {
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
-      let stderr = '';
-      child.stderr.on('data', (d: Buffer) => { stderr += d.toString(); });
-      const timer = setTimeout(() => { child.kill('SIGTERM'); }, 15000);
-      child.on('close', (code) => { clearTimeout(timer); resolve({ status: code, stderr }); });
-      child.on('error', (err) => { clearTimeout(timer); resolve({ status: 1, stderr: String(err) }); });
-    });
-
-    if (imsgResult.status === 0) {
-      log.info(`[chorus] 📨 Delivered ${choir.name} output via iMessage`);
-    } else {
-      log.warn(`[chorus] Failed to deliver ${choir.name}: ${imsgResult.stderr.slice(0, 100)}`);
-    }
-  } catch (err) {
-    log.error(`[chorus] Delivery error for ${choir.name}: ${err}`);
-  }
-}
+// ── Delivery ─────────────────────────────────────────────────
+// Choir agents handle their own delivery via OpenClaw messaging tools.
+// The scheduler's job is execution and scheduling — not routing messages.
 
 interface ChoirContext {
   choirId: string;
@@ -326,9 +244,6 @@ export function createChoirScheduler(
       saveRunState(runState, log);
 
       log.info(`[chorus] ${choir.emoji} ${choir.name} completed (${(execution.durationMs/1000).toFixed(1)}s)`);
-
-      // Deliver output to human if choir warrants it
-      await maybeDeliverOutput(choir, output, log);
 
       // Log illumination flow
       if (choir.passesTo.length > 0) {

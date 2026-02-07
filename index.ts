@@ -392,18 +392,7 @@ const plugin = {
                       successfulRuns++;
                       console.log(` ✓ (${(duration/1000).toFixed(1)}s)`);
 
-                      // Deliver Archangels output via iMessage (same as scheduler)
-                      if (choirId === 'archangels' && text.length > 20 && !/^(HEARTBEAT_OK|NO_REPLY)\s*$/i.test(text.trim())) {
-                        const truncated = text.length > 1500 ? text.slice(0, 1500) + '…' : text;
-                        const msg = `${choir.emoji} ${choir.name}\n\n${truncated}`;
-                        const imsgResult = spawnSync('imsg', ['send', '--to', 'REDACTED_PHONE', '--text', msg], {
-                          encoding: 'utf-8',
-                          timeout: 15000,
-                        });
-                        if (imsgResult.status === 0) {
-                          console.log(`   📨 Delivered ${choir.name} via iMessage`);
-                        }
-                      }
+                      // Note: Archangels handles its own delivery via OpenClaw messaging tools
                     } catch {
                       contextStore.set(`${choirId}:d${day}`, result.stdout?.slice(-2000) || `[${choir.name} completed]`);
                       successfulRuns++;
