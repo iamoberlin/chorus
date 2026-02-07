@@ -238,7 +238,7 @@ jobs:
             echo $PATH
             echo ""
             echo "Starting build..."
-            anchor build --verbose
+            anchor build
             echo "✓ Anchor build successful"
             ls -lh target/deploy/*.so
 
