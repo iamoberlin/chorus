@@ -106,22 +106,33 @@ jobs:
 
       - name: Install Anchor via AVM
         run: |
-          # Check if anchor is already cached
-          if command -v anchor &> /dev/null; then
-            echo "✓ Anchor CLI found in cache"
-            anchor --version
-          else
-            echo "Installing Anchor CLI via AVM (prebuilt binaries)..."
-            # Install AVM (Anchor Version Manager)
+          echo "Setting up Anchor CLI via AVM..."
+
+          # Install AVM if not cached
+          if ! command -v avm &> /dev/null; then
+            echo "Installing AVM (Anchor Version Manager)..."
             cargo install --git https://github.com/coral-xyz/anchor avm --locked --force
-
-            # Install Anchor 0.30.1 using AVM (downloads prebuilt binary, much faster)
-            avm install 0.30.1
-            avm use 0.30.1
-
-            echo "✓ Anchor CLI installed via AVM"
-            anchor --version
+          else
+            echo "✓ AVM found in cache"
           fi
+
+          # Add AVM to PATH for this step
+          export PATH="$HOME/.avm/bin:$PATH"
+
+          # List installed versions
+          avm list || true
+
+          # Install Anchor 0.30.1 if not already installed
+          if avm list 2>/dev/null | grep -q "0.30.1"; then
+            echo "✓ Anchor 0.30.1 already installed"
+          else
+            echo "Installing Anchor 0.30.1 via AVM..."
+            avm install 0.30.1
+          fi
+
+          # Use Anchor 0.30.1
+          avm use 0.30.1
+          anchor --version
 
       - name: Build Anchor program
         run: |
