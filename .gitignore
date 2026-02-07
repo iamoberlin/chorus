@@ -12,3 +12,5 @@ target/
 package-lock.json
 test-ledger/
 .prayer-texts.json
+Cargo.lock
+programs/**/Cargo.lock

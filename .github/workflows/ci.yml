@@ -238,12 +238,11 @@ jobs:
             echo $PATH
             echo ""
 
-            # Handle Cargo.lock version 4 by regenerating with current cargo
-            echo "Regenerating Cargo.lock files..."
+            # Remove Cargo.lock files and let anchor build regenerate them
+            echo "Removing old Cargo.lock files..."
             rm -f Cargo.lock programs/*/Cargo.lock
-            cargo generate-lockfile
 
-            echo "Starting build..."
+            echo "Starting build (will regenerate Cargo.lock)..."
             anchor build
             echo "✓ Anchor build successful"
             ls -lh target/deploy/*.so
