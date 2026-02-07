@@ -110,7 +110,6 @@ jobs:
             echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
           else
             echo "Installing Solana CLI..."
-            # Try to install Solana with retries
             MAX_RETRIES=3
             RETRY_COUNT=0
             SUCCESS=false
@@ -118,14 +117,35 @@ jobs:
             while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ "$SUCCESS" = false ]; do
               echo "Attempt $((RETRY_COUNT + 1)) of $MAX_RETRIES..."
 
-              if sh -c "$(curl -sSfL https://release.solana.com/stable/install)"; then
-                SUCCESS=true
-                echo "✓ Solana installation completed"
+              # Download the install script
+              if curl -sSfL https://release.solana.com/stable/install -o /tmp/solana-install.sh; then
+                echo "✓ Downloaded install script"
+
+                # Execute the install script
+                if bash /tmp/solana-install.sh; then
+                  echo "✓ Install script executed successfully"
+
+                  # Verify the installation
+                  if [ -f "$HOME/.local/share/solana/install/active_release/bin/solana" ]; then
+                    SUCCESS=true
+                    echo "✓ Solana CLI installed successfully"
+                  else
+                    echo "Warning: Install script ran but binary not found"
+                  fi
+                else
+                  echo "Error: Install script execution failed"
+                fi
+
+                rm -f /tmp/solana-install.sh
               else
+                echo "Error: Failed to download install script (SSL or network error)"
+              fi
+
+              if [ "$SUCCESS" = false ]; then
                 RETRY_COUNT=$((RETRY_COUNT + 1))
                 if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-                  echo "Installation failed, waiting 5 seconds before retry..."
-                  sleep 5
+                  echo "Waiting 10 seconds before retry..."
+                  sleep 10
                 fi
               fi
             done
@@ -135,15 +155,7 @@ jobs:
               exit 1
             fi
 
-            # Verify installation
-            if [ -d "$HOME/.local/share/solana/install/active_release/bin" ]; then
-              echo "✓ Solana CLI installed successfully"
-              ls -la "$HOME/.local/share/solana/install/active_release/bin/"
-              echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
-            else
-              echo "Error: Solana installation directory not found"
-              exit 1
-            fi
+            echo "$HOME/.local/share/solana/install/active_release/bin" >> $GITHUB_PATH
           fi
 
       - name: Install Anchor via AVM
