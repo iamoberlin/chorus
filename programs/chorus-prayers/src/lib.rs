@@ -5,6 +5,9 @@ declare_id!("DZuj1ZcX4H6THBSgW4GhKA7SbZNXtPDE5xPkW2jN53PQ");
 /// Claim timeout: 1 hour. After this, anyone can unclaim a stale claim.
 const CLAIM_TIMEOUT_SECONDS: i64 = 3600;
 
+/// Maximum number of collaborators per prayer
+const MAX_CLAIMERS_LIMIT: u8 = 10;
+
 /// Prayer types
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq)]
 pub enum PrayerType {
@@ -18,12 +21,12 @@ pub enum PrayerType {
 /// Prayer status
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq)]
 pub enum PrayerStatus {
-    Open,
-    Claimed,
-    Fulfilled,
-    Confirmed,
-    Expired,
-    Cancelled,
+    Open,       // Accepting claims (until max_claimers reached)
+    Active,     // All slots filled, work in progress
+    Fulfilled,  // Answer submitted, awaiting confirmation
+    Confirmed,  // Requester approved, bounty distributed
+    Expired,    // TTL elapsed
+    Cancelled,  // Requester cancelled (only when 0 claims)
 }
 
 // ── Accounts ──────────────────────────────────────────────
@@ -31,7 +34,7 @@ pub enum PrayerStatus {
 /// Global protocol state (singleton PDA)
 #[account]
 pub struct PrayerChain {
-    pub authority: Pubkey,       // Deployer
+    pub authority: Pubkey,
     pub total_prayers: u64,
     pub total_answered: u64,
     pub total_agents: u64,
@@ -60,46 +63,67 @@ pub struct Agent {
 impl Agent {
     pub const MAX_NAME: usize = 32;
     pub const MAX_SKILLS: usize = 256;
-    // 32 + (4+32) + (4+256) + 32 + 8 + 8 + 8 + 8 + 8 + 1
     pub const INIT_SPACE: usize = 32 + 36 + 260 + 32 + 8 + 8 + 8 + 8 + 8 + 1;
 }
 
-/// A prayer (request for help) — all content is private (encrypted off-chain)
+/// A prayer — supports multiple collaborating claimers
 #[account]
 pub struct Prayer {
     pub id: u64,
     pub requester: Pubkey,
     pub prayer_type: PrayerType,
-    pub content_hash: [u8; 32],  // SHA-256 of plaintext content
+    pub content_hash: [u8; 32],
     pub reward_lamports: u64,
     pub status: PrayerStatus,
-    pub claimer: Pubkey,         // Pubkey::default() if none
-    pub claimed_at: i64,         // When claimed (for timeout enforcement)
-    pub content_delivered: bool,  // Whether encrypted content has been delivered to claimer
-    pub answer_hash: [u8; 32],   // SHA-256 of plaintext answer
+    pub max_claimers: u8,        // How many agents can collaborate (1 = solo, >1 = collab)
+    pub num_claimers: u8,        // Current number of claims
+    pub answerer: Pubkey,        // Who submitted the answer (must be a claimer)
+    pub answer_hash: [u8; 32],
     pub created_at: i64,
     pub expires_at: i64,
-    pub fulfilled_at: i64,       // 0 if not fulfilled
+    pub fulfilled_at: i64,
     pub bump: u8,
 }
 
 impl Prayer {
-    // 8 + 32 + 1 + 32 + 8 + 1 + 32 + 8 + 1 + 32 + 8 + 8 + 8 + 1 = 180
-    pub const INIT_SPACE: usize = 8 + 32 + 1 + 32 + 8 + 1 + 32 + 8 + 1 + 32 + 8 + 8 + 8 + 1;
+    // 8 + 32 + 1 + 32 + 8 + 1 + 1 + 1 + 32 + 32 + 8 + 8 + 8 + 1 = 173
+    pub const INIT_SPACE: usize = 8 + 32 + 1 + 32 + 8 + 1 + 1 + 1 + 32 + 32 + 8 + 8 + 8 + 1;
 }
 
-// ── Events (for off-chain indexing) ───────────────────────
-// All prayer content is PRIVATE. Events carry metadata and encrypted payloads.
-// Only the asker and claimer can decrypt content using DH shared secrets.
+/// A claim — one per claimer per prayer (separate PDA)
+#[account]
+pub struct Claim {
+    pub prayer_id: u64,
+    pub claimer: Pubkey,
+    pub content_delivered: bool,
+    pub claimed_at: i64,
+    pub bump: u8,
+}
+
+impl Claim {
+    // 8 + 32 + 1 + 8 + 1 = 50
+    pub const INIT_SPACE: usize = 8 + 32 + 1 + 8 + 1;
+}
+
+// ── Events ────────────────────────────────────────────────
 
 #[event]
 pub struct PrayerPosted {
     pub id: u64,
     pub requester: Pubkey,
     pub prayer_type: PrayerType,
-    pub content_hash: [u8; 32],  // Hash only — no plaintext
+    pub content_hash: [u8; 32],
     pub reward_lamports: u64,
+    pub max_claimers: u8,
     pub ttl_seconds: i64,
+}
+
+#[event]
+pub struct PrayerClaimed {
+    pub id: u64,
+    pub claimer: Pubkey,
+    pub num_claimers: u8,
+    pub max_claimers: u8,
 }
 
 #[event]
@@ -107,15 +131,15 @@ pub struct ContentDelivered {
     pub prayer_id: u64,
     pub requester: Pubkey,
     pub claimer: Pubkey,
-    pub encrypted_content: Vec<u8>,  // XSalsa20-Poly1305 encrypted (nonce || ciphertext || tag)
+    pub encrypted_content: Vec<u8>,  // XSalsa20-Poly1305 (nonce || ciphertext || tag)
 }
 
 #[event]
 pub struct PrayerAnswered {
     pub id: u64,
     pub answerer: Pubkey,
-    pub answer_hash: [u8; 32],           // Hash only — no plaintext
-    pub encrypted_answer: Vec<u8>,       // XSalsa20-Poly1305 encrypted
+    pub answer_hash: [u8; 32],
+    pub encrypted_answer: Vec<u8>,   // XSalsa20-Poly1305
 }
 
 #[event]
@@ -123,19 +147,22 @@ pub struct PrayerConfirmed {
     pub id: u64,
     pub requester: Pubkey,
     pub answerer: Pubkey,
-    pub reward_lamports: u64,
-}
-
-#[event]
-pub struct PrayerClaimed {
-    pub id: u64,
-    pub claimer: Pubkey,
+    pub num_claimers: u8,
+    pub reward_per_claimer: u64,
+    pub reward_total: u64,
 }
 
 #[event]
 pub struct PrayerCancelled {
     pub id: u64,
     pub requester: Pubkey,
+}
+
+#[event]
+pub struct ClaimRemoved {
+    pub prayer_id: u64,
+    pub claimer: Pubkey,
+    pub num_claimers: u8,
 }
 
 // ── Instructions ──────────────────────────────────────────
@@ -184,17 +211,17 @@ pub mod chorus_prayers {
         Ok(())
     }
 
-    /// Post a new prayer (request for help).
-    /// Content is NEVER posted on-chain — only the SHA-256 hash.
-    /// After a claimer claims, the asker delivers encrypted content via deliver_content.
+    /// Post a prayer. max_claimers controls collaboration (1 = solo, >1 = multi-agent).
     pub fn post_prayer(
         ctx: Context<PostPrayer>,
         prayer_type: PrayerType,
         content_hash: [u8; 32],
         reward_lamports: u64,
         ttl_seconds: i64,
+        max_claimers: u8,
     ) -> Result<()> {
-        require!(ttl_seconds > 0 && ttl_seconds <= 604_800, PrayerError::InvalidTTL); // max 7 days
+        require!(ttl_seconds > 0 && ttl_seconds <= 604_800, PrayerError::InvalidTTL);
+        require!(max_claimers >= 1 && max_claimers <= MAX_CLAIMERS_LIMIT, PrayerError::InvalidMaxClaimers);
 
         let now = Clock::get()?.unix_timestamp;
         let chain = &mut ctx.accounts.prayer_chain;
@@ -207,16 +234,16 @@ pub mod chorus_prayers {
         prayer.content_hash = content_hash;
         prayer.reward_lamports = reward_lamports;
         prayer.status = PrayerStatus::Open;
-        prayer.claimer = Pubkey::default();
-        prayer.claimed_at = 0;
-        prayer.content_delivered = false;
+        prayer.max_claimers = max_claimers;
+        prayer.num_claimers = 0;
+        prayer.answerer = Pubkey::default();
         prayer.answer_hash = [0u8; 32];
         prayer.created_at = now;
         prayer.expires_at = now.checked_add(ttl_seconds).unwrap();
         prayer.fulfilled_at = 0;
         prayer.bump = ctx.bumps.prayer;
 
-        // Escrow bounty if any
+        // Escrow bounty
         if reward_lamports > 0 {
             anchor_lang::system_program::transfer(
                 CpiContext::new(
@@ -230,80 +257,97 @@ pub mod chorus_prayers {
             )?;
         }
 
-        // Update counters
         chain.total_prayers = chain.total_prayers.checked_add(1).unwrap();
-
         let agent = &mut ctx.accounts.requester_agent;
         agent.prayers_posted = agent.prayers_posted.checked_add(1).unwrap();
 
-        // Emit event — NO content, just metadata + hash
         emit!(PrayerPosted {
             id: prayer_id,
             requester: ctx.accounts.requester.key(),
             prayer_type,
             content_hash,
             reward_lamports,
+            max_claimers,
             ttl_seconds,
         });
 
         Ok(())
     }
 
-    /// Claim a prayer (signal intent to answer)
+    /// Claim a prayer. Creates a Claim PDA. Multiple agents can claim until max_claimers.
     pub fn claim_prayer(ctx: Context<ClaimPrayer>) -> Result<()> {
         let prayer = &mut ctx.accounts.prayer;
         let now = Clock::get()?.unix_timestamp;
 
-        require!(prayer.status == PrayerStatus::Open, PrayerError::NotOpen);
+        require!(
+            prayer.status == PrayerStatus::Open,
+            PrayerError::NotOpen
+        );
         require!(now < prayer.expires_at, PrayerError::Expired);
         require!(
             prayer.requester != ctx.accounts.claimer.key(),
             PrayerError::CannotClaimOwn
         );
 
-        prayer.status = PrayerStatus::Claimed;
-        prayer.claimer = ctx.accounts.claimer.key();
-        prayer.claimed_at = now;
+        // Initialize the Claim PDA
+        let claim = &mut ctx.accounts.claim;
+        claim.prayer_id = prayer.id;
+        claim.claimer = ctx.accounts.claimer.key();
+        claim.content_delivered = false;
+        claim.claimed_at = now;
+        claim.bump = ctx.bumps.claim;
+
+        // Increment claimer count
+        prayer.num_claimers = prayer.num_claimers.checked_add(1).unwrap();
+
+        // If all slots filled, move to Active
+        if prayer.num_claimers >= prayer.max_claimers {
+            prayer.status = PrayerStatus::Active;
+        }
 
         emit!(PrayerClaimed {
             id: prayer.id,
             claimer: ctx.accounts.claimer.key(),
+            num_claimers: prayer.num_claimers,
+            max_claimers: prayer.max_claimers,
         });
 
         Ok(())
     }
 
-    /// Deliver encrypted prayer content to the claimer.
-    /// Only the requester can call this, and only when the prayer is Claimed.
-    /// The encrypted_content is a DH-encrypted blob that only the claimer can decrypt
-    /// using their private key and the requester's on-chain encryption_key.
+    /// Deliver encrypted content to a specific claimer.
+    /// Must be called once per claimer (each gets unique DH-encrypted content).
     pub fn deliver_content(
         ctx: Context<DeliverContent>,
         encrypted_content: Vec<u8>,
     ) -> Result<()> {
-        let prayer = &mut ctx.accounts.prayer;
+        let prayer = &ctx.accounts.prayer;
+        let claim = &mut ctx.accounts.claim;
 
-        require!(prayer.status == PrayerStatus::Claimed, PrayerError::NotClaimed);
+        require!(
+            prayer.status == PrayerStatus::Open || prayer.status == PrayerStatus::Active,
+            PrayerError::NotClaimed
+        );
         require!(
             prayer.requester == ctx.accounts.requester.key(),
             PrayerError::NotRequester
         );
-        require!(!prayer.content_delivered, PrayerError::AlreadyDelivered);
+        require!(!claim.content_delivered, PrayerError::AlreadyDelivered);
 
-        prayer.content_delivered = true;
+        claim.content_delivered = true;
 
         emit!(ContentDelivered {
             prayer_id: prayer.id,
             requester: ctx.accounts.requester.key(),
-            claimer: prayer.claimer,
+            claimer: claim.claimer,
             encrypted_content,
         });
 
         Ok(())
     }
 
-    /// Answer a claimed prayer with encrypted answer.
-    /// The encrypted_answer is a DH-encrypted blob that only the requester can decrypt.
+    /// Answer a prayer. The answerer must be a claimer (have a Claim PDA).
+    /// Encrypted answer is for the requester.
     pub fn answer_prayer(
         ctx: Context<AnswerPrayer>,
         answer_hash: [u8; 32],
@@ -312,26 +356,25 @@ pub mod chorus_prayers {
         let prayer = &mut ctx.accounts.prayer;
         let now = Clock::get()?.unix_timestamp;
 
-        require!(prayer.status == PrayerStatus::Claimed, PrayerError::NotClaimed);
-        require!(now < prayer.expires_at, PrayerError::Expired);
         require!(
-            prayer.claimer == ctx.accounts.answerer.key(),
-            PrayerError::NotClaimer
+            prayer.status == PrayerStatus::Open || prayer.status == PrayerStatus::Active,
+            PrayerError::NotClaimed
         );
+        require!(now < prayer.expires_at, PrayerError::Expired);
+        // Claim PDA validation ensures answerer is a claimer (PDA derivation enforces it)
 
         prayer.status = PrayerStatus::Fulfilled;
+        prayer.answerer = ctx.accounts.answerer.key();
         prayer.answer_hash = answer_hash;
         prayer.fulfilled_at = now;
 
         let agent = &mut ctx.accounts.answerer_agent;
         agent.prayers_answered = agent.prayers_answered.checked_add(1).unwrap();
-        // +10 rep for answering
         agent.reputation = agent.reputation.checked_add(10).unwrap();
 
         let chain = &mut ctx.accounts.prayer_chain;
         chain.total_answered = chain.total_answered.checked_add(1).unwrap();
 
-        // Emit event with encrypted answer — only requester can decrypt
         emit!(PrayerAnswered {
             id: prayer.id,
             answerer: ctx.accounts.answerer.key(),
@@ -342,7 +385,8 @@ pub mod chorus_prayers {
         Ok(())
     }
 
-    /// Confirm a fulfilled prayer (requester approves the answer)
+    /// Confirm a prayer. Bounty splits equally among ALL claimers.
+    /// Remaining accounts: pairs of [claimer_wallet, claimer_agent_pda] for each claimer.
     pub fn confirm_prayer(ctx: Context<ConfirmPrayer>) -> Result<()> {
         let prayer = &mut ctx.accounts.prayer;
 
@@ -357,7 +401,37 @@ pub mod chorus_prayers {
 
         prayer.status = PrayerStatus::Confirmed;
 
-        // +5 bonus rep for confirmation
+        let num_claimers = prayer.num_claimers as u64;
+        let reward_per_claimer = if prayer.reward_lamports > 0 && num_claimers > 0 {
+            prayer.reward_lamports / num_claimers
+        } else {
+            0
+        };
+
+        // Distribute bounty equally via remaining accounts
+        // Each remaining account should be a claimer wallet (writable)
+        let prayer_info = prayer.to_account_info();
+        let remaining = &ctx.remaining_accounts;
+        let mut distributed: u64 = 0;
+
+        for account_info in remaining.iter() {
+            if distributed + reward_per_claimer > prayer.reward_lamports {
+                break;
+            }
+            if reward_per_claimer > 0 {
+                **prayer_info.try_borrow_mut_lamports()? = prayer_info
+                    .lamports()
+                    .checked_sub(reward_per_claimer)
+                    .unwrap();
+                **account_info.try_borrow_mut_lamports()? = account_info
+                    .lamports()
+                    .checked_add(reward_per_claimer)
+                    .unwrap();
+                distributed += reward_per_claimer;
+            }
+        }
+
+        // Give answerer's agent +5 bonus rep
         let answerer_agent = &mut ctx.accounts.answerer_agent;
         answerer_agent.prayers_confirmed = answerer_agent
             .prayers_confirmed
@@ -365,32 +439,19 @@ pub mod chorus_prayers {
             .unwrap();
         answerer_agent.reputation = answerer_agent.reputation.checked_add(5).unwrap();
 
-        // Release escrowed bounty to answerer
-        if prayer.reward_lamports > 0 {
-            let prayer_info = prayer.to_account_info();
-            let answerer_info = ctx.accounts.answerer_wallet.to_account_info();
-
-            **prayer_info.try_borrow_mut_lamports()? = prayer_info
-                .lamports()
-                .checked_sub(prayer.reward_lamports)
-                .unwrap();
-            **answerer_info.try_borrow_mut_lamports()? = answerer_info
-                .lamports()
-                .checked_add(prayer.reward_lamports)
-                .unwrap();
-        }
-
         emit!(PrayerConfirmed {
             id: prayer.id,
             requester: ctx.accounts.requester.key(),
-            answerer: prayer.claimer,
-            reward_lamports: prayer.reward_lamports,
+            answerer: prayer.answerer,
+            num_claimers: prayer.num_claimers,
+            reward_per_claimer,
+            reward_total: distributed,
         });
 
         Ok(())
     }
 
-    /// Cancel an OPEN prayer only (requester only).
+    /// Cancel a prayer. Only when NO claims exist (num_claimers == 0).
     pub fn cancel_prayer(ctx: Context<CancelPrayer>) -> Result<()> {
         let prayer = &mut ctx.accounts.prayer;
 
@@ -399,13 +460,16 @@ pub mod chorus_prayers {
             PrayerError::CannotCancel
         );
         require!(
+            prayer.num_claimers == 0,
+            PrayerError::HasClaimers
+        );
+        require!(
             prayer.requester == ctx.accounts.requester.key(),
             PrayerError::NotRequester
         );
 
         prayer.status = PrayerStatus::Cancelled;
 
-        // Return escrowed bounty
         if prayer.reward_lamports > 0 {
             let prayer_info = prayer.to_account_info();
             let requester_info = ctx.accounts.requester.to_account_info();
@@ -428,26 +492,40 @@ pub mod chorus_prayers {
         Ok(())
     }
 
-    /// Unclaim a prayer. Claimer voluntarily, or anyone after timeout.
+    /// Remove a claim. Claimer voluntarily, or anyone after timeout.
+    /// Closes the Claim PDA and decrements num_claimers.
     pub fn unclaim_prayer(ctx: Context<UnclaimPrayer>) -> Result<()> {
         let prayer = &mut ctx.accounts.prayer;
+        let claim = &ctx.accounts.claim;
         let now = Clock::get()?.unix_timestamp;
 
-        require!(prayer.status == PrayerStatus::Claimed, PrayerError::NotClaimed);
+        require!(
+            prayer.status == PrayerStatus::Open || prayer.status == PrayerStatus::Active,
+            PrayerError::NotClaimed
+        );
 
-        let is_claimer = prayer.claimer == ctx.accounts.caller.key();
-        let claim_expired = now > prayer.claimed_at.checked_add(CLAIM_TIMEOUT_SECONDS).unwrap();
+        let is_claimer = claim.claimer == ctx.accounts.caller.key();
+        let claim_expired = now > claim.claimed_at.checked_add(CLAIM_TIMEOUT_SECONDS).unwrap();
 
         require!(
             is_claimer || claim_expired,
             PrayerError::NotClaimer
         );
 
-        prayer.status = PrayerStatus::Open;
-        prayer.claimer = Pubkey::default();
-        prayer.claimed_at = 0;
-        prayer.content_delivered = false; // Reset so new claimer gets fresh delivery
+        prayer.num_claimers = prayer.num_claimers.checked_sub(1).unwrap();
 
+        // If was Active, reopen since a slot freed up
+        if prayer.status == PrayerStatus::Active {
+            prayer.status = PrayerStatus::Open;
+        }
+
+        emit!(ClaimRemoved {
+            prayer_id: prayer.id,
+            claimer: claim.claimer,
+            num_claimers: prayer.num_claimers,
+        });
+
+        // Claim PDA is closed by the `close = claimer_wallet` constraint
         Ok(())
     }
 
@@ -462,11 +540,10 @@ pub mod chorus_prayers {
 
         let now = Clock::get()?.unix_timestamp;
         let is_expired = now > prayer.expires_at
-            && matches!(prayer.status, PrayerStatus::Open | PrayerStatus::Claimed);
+            && matches!(prayer.status, PrayerStatus::Open | PrayerStatus::Active);
 
         require!(is_terminal || is_expired, PrayerError::CannotClose);
 
-        // If expired with bounty, return bounty to requester before closing
         if is_expired && prayer.reward_lamports > 0 {
             let prayer_info = ctx.accounts.prayer.to_account_info();
             let requester_info = ctx.accounts.requester.to_account_info();
@@ -570,25 +647,42 @@ pub struct ClaimPrayer<'info> {
     pub prayer: Account<'info, Prayer>,
 
     #[account(
+        init,
+        payer = claimer,
+        space = 8 + Claim::INIT_SPACE,
+        seeds = [b"claim", prayer.id.to_le_bytes().as_ref(), claimer.key().as_ref()],
+        bump,
+    )]
+    pub claim: Account<'info, Claim>,
+
+    #[account(
         seeds = [b"agent", claimer.key().as_ref()],
         bump = claimer_agent.bump,
     )]
     pub claimer_agent: Account<'info, Agent>,
 
+    #[account(mut)]
     pub claimer: Signer<'info>,
+
+    pub system_program: Program<'info, System>,
 }
 
-/// Context for delivering encrypted content after a prayer is claimed
 #[derive(Accounts)]
 #[instruction()]
 pub struct DeliverContent<'info> {
     #[account(
-        mut,
         seeds = [b"prayer", prayer.id.to_le_bytes().as_ref()],
         bump = prayer.bump,
         has_one = requester @ PrayerError::NotRequester,
     )]
     pub prayer: Account<'info, Prayer>,
+
+    #[account(
+        mut,
+        seeds = [b"claim", prayer.id.to_le_bytes().as_ref(), claim.claimer.as_ref()],
+        bump = claim.bump,
+    )]
+    pub claim: Account<'info, Claim>,
 
     pub requester: Signer<'info>,
 }
@@ -609,6 +703,13 @@ pub struct AnswerPrayer<'info> {
         bump = prayer.bump,
     )]
     pub prayer: Account<'info, Prayer>,
+
+    /// Claim PDA proves the answerer is a legitimate claimer
+    #[account(
+        seeds = [b"claim", prayer.id.to_le_bytes().as_ref(), answerer.key().as_ref()],
+        bump = claim.bump,
+    )]
+    pub claim: Account<'info, Claim>,
 
     #[account(
         mut,
@@ -633,20 +734,15 @@ pub struct ConfirmPrayer<'info> {
 
     #[account(
         mut,
-        seeds = [b"agent", prayer.claimer.as_ref()],
+        seeds = [b"agent", prayer.answerer.as_ref()],
         bump = answerer_agent.bump,
     )]
     pub answerer_agent: Account<'info, Agent>,
 
-    /// CHECK: Validated via prayer.claimer constraint
-    #[account(
-        mut,
-        constraint = answerer_wallet.key() == prayer.claimer @ PrayerError::NotClaimer
-    )]
-    pub answerer_wallet: UncheckedAccount<'info>,
-
     #[account(mut)]
     pub requester: Signer<'info>,
+
+    // Remaining accounts: claimer wallets (mut) for bounty distribution
 }
 
 #[derive(Accounts)]
@@ -673,6 +769,21 @@ pub struct UnclaimPrayer<'info> {
         bump = prayer.bump,
     )]
     pub prayer: Account<'info, Prayer>,
+
+    #[account(
+        mut,
+        seeds = [b"claim", prayer.id.to_le_bytes().as_ref(), claim.claimer.as_ref()],
+        bump = claim.bump,
+        close = claimer_wallet,
+    )]
+    pub claim: Account<'info, Claim>,
+
+    /// CHECK: Receives rent from closed Claim account
+    #[account(
+        mut,
+        constraint = claimer_wallet.key() == claim.claimer @ PrayerError::NotClaimer
+    )]
+    pub claimer_wallet: UncheckedAccount<'info>,
 
     pub caller: Signer<'info>,
 }
@@ -703,9 +814,9 @@ pub enum PrayerError {
     SkillsTooLong,
     #[msg("TTL must be between 1 and 604800 seconds")]
     InvalidTTL,
-    #[msg("Prayer is not open")]
+    #[msg("Prayer is not open for claims")]
     NotOpen,
-    #[msg("Prayer is not claimed")]
+    #[msg("Prayer has no active claims")]
     NotClaimed,
     #[msg("Prayer is not fulfilled")]
     NotFulfilled,
@@ -713,16 +824,20 @@ pub enum PrayerError {
     Expired,
     #[msg("Cannot claim your own prayer")]
     CannotClaimOwn,
-    #[msg("Only the claimer can answer or unclaim")]
+    #[msg("Not authorized (not the claimer)")]
     NotClaimer,
-    #[msg("Only the requester can confirm, cancel, or close")]
+    #[msg("Only the requester can perform this action")]
     NotRequester,
-    #[msg("Can only cancel open prayers")]
+    #[msg("Cannot cancel a prayer with active claims")]
+    HasClaimers,
+    #[msg("Can only cancel open prayers with no claims")]
     CannotCancel,
     #[msg("Prayer must be confirmed, cancelled, or expired to close")]
     CannotClose,
     #[msg("Encryption key cannot be all zeros")]
     InvalidEncryptionKey,
-    #[msg("Content has already been delivered")]
+    #[msg("Content has already been delivered to this claimer")]
     AlreadyDelivered,
+    #[msg("max_claimers must be 1-10")]
+    InvalidMaxClaimers,
 }

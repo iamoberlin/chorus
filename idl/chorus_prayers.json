@@ -10,8 +10,8 @@
     {
       "name": "answer_prayer",
       "docs": [
-        "Answer a claimed prayer with encrypted answer.",
-        "The encrypted_answer is a DH-encrypted blob that only the requester can decrypt."
+        "Answer a prayer. The answerer must be a claimer (have a Claim PDA).",
+        "Encrypted answer is for the requester."
       ],
       "discriminator": [
         80,
@@ -74,6 +74,35 @@
           }
         },
         {
+          "name": "claim",
+          "docs": [
+            "Claim PDA proves the answerer is a legitimate claimer"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  97,
+                  105,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "prayer.id",
+                "account": "Prayer"
+              },
+              {
+                "kind": "account",
+                "path": "answerer"
+              }
+            ]
+          }
+        },
+        {
           "name": "answerer_agent",
           "writable": true,
           "pda": {
@@ -119,7 +148,7 @@
     {
       "name": "cancel_prayer",
       "docs": [
-        "Cancel an OPEN prayer only (requester only)."
+        "Cancel a prayer. Only when NO claims exist (num_claimers == 0)."
       ],
       "discriminator": [
         139,
@@ -170,7 +199,7 @@
     {
       "name": "claim_prayer",
       "docs": [
-        "Claim a prayer (signal intent to answer)"
+        "Claim a prayer. Creates a Claim PDA. Multiple agents can claim until max_claimers."
       ],
       "discriminator": [
         233,
@@ -208,6 +237,33 @@
           }
         },
         {
+          "name": "claim",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  97,
+                  105,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "prayer.id",
+                "account": "Prayer"
+              },
+              {
+                "kind": "account",
+                "path": "claimer"
+              }
+            ]
+          }
+        },
+        {
           "name": "claimer_agent",
           "pda": {
             "seeds": [
@@ -230,7 +286,12 @@
         },
         {
           "name": "claimer",
+          "writable": true,
           "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
         }
       ],
       "args": []
@@ -289,7 +350,8 @@
     {
       "name": "confirm_prayer",
       "docs": [
-        "Confirm a fulfilled prayer (requester approves the answer)"
+        "Confirm a prayer. Bounty splits equally among ALL claimers.",
+        "Remaining accounts: pairs of [claimer_wallet, claimer_agent_pda] for each claimer."
       ],
       "discriminator": [
         132,
@@ -343,15 +405,11 @@
               },
               {
                 "kind": "account",
-                "path": "prayer.claimer",
+                "path": "prayer.answerer",
                 "account": "Prayer"
               }
             ]
           }
-        },
-        {
-          "name": "answerer_wallet",
-          "writable": true
         },
         {
           "name": "requester",
@@ -367,10 +425,8 @@
     {
       "name": "deliver_content",
       "docs": [
-        "Deliver encrypted prayer content to the claimer.",
-        "Only the requester can call this, and only when the prayer is Claimed.",
-        "The encrypted_content is a DH-encrypted blob that only the claimer can decrypt",
-        "using their private key and the requester's on-chain encryption_key."
+        "Deliver encrypted content to a specific claimer.",
+        "Must be called once per claimer (each gets unique DH-encrypted content)."
       ],
       "discriminator": [
         189,
@@ -385,7 +441,6 @@
       "accounts": [
         {
           "name": "prayer",
-          "writable": true,
           "pda": {
             "seeds": [
               {
@@ -403,6 +458,34 @@
                 "kind": "account",
                 "path": "prayer.id",
                 "account": "Prayer"
+              }
+            ]
+          }
+        },
+        {
+          "name": "claim",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  97,
+                  105,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "prayer.id",
+                "account": "Prayer"
+              },
+              {
+                "kind": "account",
+                "path": "claim.claimer",
+                "account": "Claim"
               }
             ]
           }
@@ -478,9 +561,7 @@
     {
       "name": "post_prayer",
       "docs": [
-        "Post a new prayer (request for help).",
-        "Content is NEVER posted on-chain — only the SHA-256 hash.",
-        "After a claimer claims, the asker delivers encrypted content via deliver_content."
+        "Post a prayer. max_claimers controls collaboration (1 = solo, >1 = multi-agent)."
       ],
       "discriminator": [
         247,
@@ -599,6 +680,10 @@
         {
           "name": "ttl_seconds",
           "type": "i64"
+        },
+        {
+          "name": "max_claimers",
+          "type": "u8"
         }
       ]
     },
@@ -698,7 +783,8 @@
     {
       "name": "unclaim_prayer",
       "docs": [
-        "Unclaim a prayer. Claimer voluntarily, or anyone after timeout."
+        "Remove a claim. Claimer voluntarily, or anyone after timeout.",
+        "Closes the Claim PDA and decrements num_claimers."
       ],
       "discriminator": [
         17,
@@ -736,6 +822,38 @@
           }
         },
         {
+          "name": "claim",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  108,
+                  97,
+                  105,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "prayer.id",
+                "account": "Prayer"
+              },
+              {
+                "kind": "account",
+                "path": "claim.claimer",
+                "account": "Claim"
+              }
+            ]
+          }
+        },
+        {
+          "name": "claimer_wallet",
+          "writable": true
+        },
+        {
           "name": "caller",
           "signer": true
         }
@@ -755,6 +873,19 @@
         197,
         86,
         7
+      ]
+    },
+    {
+      "name": "Claim",
+      "discriminator": [
+        155,
+        70,
+        22,
+        176,
+        123,
+        215,
+        246,
+        102
       ]
     },
     {
@@ -785,6 +916,19 @@
     }
   ],
   "events": [
+    {
+      "name": "ClaimRemoved",
+      "discriminator": [
+        203,
+        17,
+        136,
+        175,
+        184,
+        87,
+        172,
+        87
+      ]
+    },
     {
       "name": "ContentDelivered",
       "discriminator": [
@@ -883,12 +1027,12 @@
     {
       "code": 6003,
       "name": "NotOpen",
-      "msg": "Prayer is not open"
+      "msg": "Prayer is not open for claims"
     },
     {
       "code": 6004,
       "name": "NotClaimed",
-      "msg": "Prayer is not claimed"
+      "msg": "Prayer has no active claims"
     },
     {
       "code": 6005,
@@ -908,32 +1052,42 @@
     {
       "code": 6008,
       "name": "NotClaimer",
-      "msg": "Only the claimer can answer or unclaim"
+      "msg": "Not authorized (not the claimer)"
     },
     {
       "code": 6009,
       "name": "NotRequester",
-      "msg": "Only the requester can confirm, cancel, or close"
+      "msg": "Only the requester can perform this action"
     },
     {
       "code": 6010,
-      "name": "CannotCancel",
-      "msg": "Can only cancel open prayers"
+      "name": "HasClaimers",
+      "msg": "Cannot cancel a prayer with active claims"
     },
     {
       "code": 6011,
+      "name": "CannotCancel",
+      "msg": "Can only cancel open prayers with no claims"
+    },
+    {
+      "code": 6012,
       "name": "CannotClose",
       "msg": "Prayer must be confirmed, cancelled, or expired to close"
     },
     {
-      "code": 6012,
+      "code": 6013,
       "name": "InvalidEncryptionKey",
       "msg": "Encryption key cannot be all zeros"
     },
     {
-      "code": 6013,
+      "code": 6014,
       "name": "AlreadyDelivered",
-      "msg": "Content has already been delivered"
+      "msg": "Content has already been delivered to this claimer"
+    },
+    {
+      "code": 6015,
+      "name": "InvalidMaxClaimers",
+      "msg": "max_claimers must be 1-10"
     }
   ],
   "types": [
@@ -994,6 +1148,57 @@
       }
     },
     {
+      "name": "Claim",
+      "docs": [
+        "A claim — one per claimer per prayer (separate PDA)"
+      ],
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "prayer_id",
+            "type": "u64"
+          },
+          {
+            "name": "claimer",
+            "type": "pubkey"
+          },
+          {
+            "name": "content_delivered",
+            "type": "bool"
+          },
+          {
+            "name": "claimed_at",
+            "type": "i64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ClaimRemoved",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "prayer_id",
+            "type": "u64"
+          },
+          {
+            "name": "claimer",
+            "type": "pubkey"
+          },
+          {
+            "name": "num_claimers",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
       "name": "ContentDelivered",
       "type": {
         "kind": "struct",
@@ -1020,7 +1225,7 @@
     {
       "name": "Prayer",
       "docs": [
-        "A prayer (request for help) — all content is private (encrypted off-chain)"
+        "A prayer — supports multiple collaborating claimers"
       ],
       "type": {
         "kind": "struct",
@@ -1063,16 +1268,16 @@
             }
           },
           {
-            "name": "claimer",
+            "name": "max_claimers",
+            "type": "u8"
+          },
+          {
+            "name": "num_claimers",
+            "type": "u8"
+          },
+          {
+            "name": "answerer",
             "type": "pubkey"
-          },
-          {
-            "name": "claimed_at",
-            "type": "i64"
-          },
-          {
-            "name": "content_delivered",
-            "type": "bool"
           },
           {
             "name": "answer_hash",
@@ -1190,6 +1395,14 @@
           {
             "name": "claimer",
             "type": "pubkey"
+          },
+          {
+            "name": "num_claimers",
+            "type": "u8"
+          },
+          {
+            "name": "max_claimers",
+            "type": "u8"
           }
         ]
       }
@@ -1212,7 +1425,15 @@
             "type": "pubkey"
           },
           {
-            "name": "reward_lamports",
+            "name": "num_claimers",
+            "type": "u8"
+          },
+          {
+            "name": "reward_per_claimer",
+            "type": "u64"
+          },
+          {
+            "name": "reward_total",
             "type": "u64"
           }
         ]
@@ -1253,6 +1474,10 @@
             "type": "u64"
           },
           {
+            "name": "max_claimers",
+            "type": "u8"
+          },
+          {
             "name": "ttl_seconds",
             "type": "i64"
           }
@@ -1271,7 +1496,7 @@
             "name": "Open"
           },
           {
-            "name": "Claimed"
+            "name": "Active"
           },
           {
             "name": "Fulfilled"
