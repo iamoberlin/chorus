@@ -14,8 +14,8 @@ chorus_prayers = "DZuj1ZcX4H6THBSgW4GhKA7SbZNXtPDE5xPkW2jN53PQ"
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "devnet"
+cluster = "localnet"
 wallet = "~/.config/solana/id.json"
 
 [scripts]
-test = "npx ts-mocha -p ./tsconfig.json -t 1000000 tests/**/*.ts"
+test = "npx mocha --require tsx --timeout 60000 tests/**/*.ts"

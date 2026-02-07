@@ -2,8 +2,10 @@ import * as anchor from "@coral-xyz/anchor";
 import { Program } from "@coral-xyz/anchor";
 import { PublicKey, Keypair, SystemProgram, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { assert } from "chai";
+import { createRequire } from "module";
+import { createHash } from "crypto";
 
-// Load IDL type
+const require = createRequire(import.meta.url);
 const IDL = require("../target/idl/chorus_prayers.json");
 
 describe("chorus-prayers", () => {
@@ -205,9 +207,7 @@ describe("chorus-prayers", () => {
 
     const answer = "SOFR is currently at 4.55%. 7-day trend: stable, down 2bps from last week.";
     const hash = Array.from(
-      Buffer.from(
-        require("crypto").createHash("sha256").update(answer).digest()
-      )
+      createHash("sha256").update(answer).digest()
     );
 
     await program.methods
