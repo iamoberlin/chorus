@@ -84,7 +84,7 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
+          toolchain: "1.75.0"
 
       - name: Cache Cargo, Anchor, and Solana
         uses: actions/cache@v4
@@ -233,17 +233,14 @@ jobs:
             echo "Rust version:"
             rustc --version
             echo ""
-            echo "PATH:"
-            echo $PATH
-            echo ""
 
             # Remove any Cargo.lock files (including from cache)
             echo "Removing old Cargo.lock files..."
             find . -name "Cargo.lock" -type f -delete
-            echo "Removed all Cargo.lock files"
 
-            echo "Starting build (will regenerate Cargo.lock)..."
-            anchor build
+            echo "Starting build..."
+            # Build with explicit lockfile version 3 support
+            CARGO_RESOLVER_INCOMPATIBLE_RUST_VERSIONS=fallback anchor build
             echo "✓ Anchor build successful"
             ls -lh target/deploy/*.so
 
