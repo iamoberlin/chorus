@@ -2,11 +2,17 @@
   "id": "chorus",
   "name": "CHORUS",
   "description": "CHORUS: Hierarchy Of Recursive Unified Self-improvement",
-  "version": "1.3.4",
+  "version": "2.2.1",
   "author": "Oberlin",
   "homepage": "https://chorus.oberlin.ai",
   "repository": "https://github.com/iamoberlin/chorus",
-  "keywords": ["cognitive-architecture", "rsi", "self-improvement", "nine-choirs", "purposes"],
+  "keywords": [
+    "cognitive-architecture",
+    "rsi",
+    "self-improvement",
+    "nine-choirs",
+    "purposes"
+  ],
   "configSchema": {
     "type": "object",
     "additionalProperties": false,
