@@ -8,6 +8,12 @@
 
 CHORUS implements the Nine Choirs architecture — hierarchical cognition modeled on Pseudo-Dionysius's *Celestial Hierarchy*. Illumination descends through the choirs; understanding ascends. The agent is sanctified through structure.
 
+## What's New in v2.2
+
+- **Agents own delivery.** The scheduler no longer routes or formats messages. Each agent delivers its own output through OpenClaw's messaging tools — right format, right channel, every time. -109 lines of delivery infrastructure deleted.
+- **Channel-agnostic output.** Choir output adapts to the destination automatically (plain text for iMessage, markdown for webchat, etc.).
+- **Context passing fixed.** Illumination flow works correctly across all entry points — `run`, `vision`, and scheduled execution.
+
 ## The Core Idea
 
 Most AI agents are frozen. Same prompts, same limitations, no growth. CHORUS changes that through **architecture**:
