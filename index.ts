@@ -155,11 +155,26 @@ const plugin = {
         return;
       }
 
+      // Strip markdown for channels that don't support it
+      let deliveryText = text.slice(0, 4000);
+      if (channel === 'imessage') {
+        deliveryText = deliveryText
+          .replace(/\*\*(.+?)\*\*/g, '$1')    // bold
+          .replace(/\*(.+?)\*/g, '$1')          // italic
+          .replace(/__(.+?)__/g, '$1')          // bold alt
+          .replace(/_(.+?)_/g, '$1')            // italic alt
+          .replace(/`(.+?)`/g, '$1')            // inline code
+          .replace(/```[\s\S]*?```/g, '')       // code blocks
+          .replace(/^#{1,6}\s+/gm, '')          // headers
+          .replace(/^\s*[-*+]\s+/gm, '• ')     // bullet lists
+          .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1'); // links
+      }
+
       try {
         const args = [
           'message', 'send',
           '--target', target,
-          '--message', text.slice(0, 4000),
+          '--message', deliveryText,
         ];
         if (channel) args.push('--channel', channel);
 
