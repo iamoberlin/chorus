@@ -245,6 +245,53 @@ export function createChoirScheduler(
 
       log.info(`[chorus] ${choir.emoji} ${choir.name} completed (${(execution.durationMs/1000).toFixed(1)}s)`);
 
+      // Deliver output to user via OpenClaw messaging if choir is marked for delivery
+      // Reads target from OpenClaw config (channels.*.allowFrom) — no hardcoded PII
+      if (choir.delivers && output && output !== "(no response)" && output !== "HEARTBEAT_OK" && output !== "NO_REPLY") {
+        const channels = api.config?.channels as Record<string, any> | undefined;
+        let target: string | undefined;
+        let channel: string | undefined;
+
+        if (channels) {
+          for (const [ch, cfg] of Object.entries(channels)) {
+            if (cfg?.enabled && cfg?.allowFrom?.[0]) {
+              target = cfg.allowFrom[0];
+              channel = ch;
+              break;
+            }
+          }
+        }
+
+        if (target) {
+          try {
+            const args = [
+              'message', 'send',
+              '--target', target,
+              '--message', output.slice(0, 4000),
+            ];
+            if (channel) args.push('--channel', channel);
+
+            const deliveryProc = spawn('openclaw', args, { stdio: ['pipe', 'pipe', 'pipe'] });
+
+            deliveryProc.on('close', (code) => {
+              if (code === 0) {
+                log.info(`[chorus] 📨 ${choir.name} output delivered via ${channel || 'default'}`);
+              } else {
+                log.warn(`[chorus] ⚠ ${choir.name} delivery failed (exit ${code})`);
+              }
+            });
+
+            deliveryProc.on('error', (err) => {
+              log.warn(`[chorus] ⚠ ${choir.name} delivery error: ${err.message}`);
+            });
+          } catch (deliveryErr) {
+            log.warn(`[chorus] ⚠ ${choir.name} delivery error: ${deliveryErr}`);
+          }
+        } else {
+          log.warn(`[chorus] ⚠ No delivery target found in OpenClaw config for ${choir.name}`);
+        }
+      }
+
       // Log illumination flow
       if (choir.passesTo.length > 0) {
         log.debug(`[chorus] Illumination ready for: ${choir.passesTo.join(", ")}`);

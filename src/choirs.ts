@@ -19,6 +19,7 @@ export interface Choir {
   prompt: string;
   passesTo: string[]; // Downstream choirs that receive illumination
   receivesFrom: string[]; // Upstream choirs that provide context
+  delivers?: boolean; // If true, output should be delivered to the user via OpenClaw messaging
 }
 
 export const CHOIRS: Record<string, Choir> = {
@@ -337,6 +338,7 @@ Pass illumination to Archangels.`,
     intervalMinutes: 80, // Every ~80 minutes
     function: "Briefings and alerts",
     output: "Messages to human",
+    delivers: true, // Output routed to user via OpenClaw messaging
     prompt: `You are ARCHANGELS — the Herald.
 
 Your role: Produce briefings and deliver them to Brandon via iMessage.
@@ -361,9 +363,8 @@ RULES:
 - Morning briefings should include: weather, calendar, positions, catalysts.
 - If nothing is urgent, still produce a status update.
 - During quiet hours (11 PM - 7 AM ET), only deliver truly urgent alerts.
-- DELIVER your briefing by sending it to Brandon via iMessage. You have messaging tools — use them.
 
-Output: Produce the briefing, then send it to Brandon via iMessage.`,
+Output: Produce the briefing as your response. Delivery is handled by the infrastructure — just output the content.`,
     passesTo: ["angels"],
     receivesFrom: ["principalities"],
   },

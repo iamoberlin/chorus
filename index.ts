@@ -11,7 +11,7 @@ import { spawnSync } from "child_process";
 import { loadChorusConfig, type ChorusPluginConfig } from "./src/config.js";
 import { createSecurityHooks } from "./src/security.js";
 import { createChoirScheduler } from "./src/scheduler.js";
-import { CHOIRS, formatFrequency } from "./src/choirs.js";
+import { CHOIRS, formatFrequency, CASCADE_ORDER } from "./src/choirs.js";
 import {
   getTodayMetrics,
   getMetricsForDate,
@@ -102,6 +102,81 @@ const plugin = {
       api.logger.info("[chorus] Purpose research disabled");
     }
 
+    // Helper: resolve {choir_context} placeholders using a context store
+    function resolvePrompt(choir: typeof CHOIRS[string], ctxStore: Map<string, string>): string {
+      let prompt = choir.prompt;
+      for (const upstreamId of choir.receivesFrom) {
+        const placeholder = `{${upstreamId}_context}`;
+        const ctx = ctxStore.get(upstreamId);
+        prompt = prompt.replace(placeholder, ctx || `(no prior ${upstreamId} output)`);
+      }
+      return prompt;
+    }
+
+    // Helper: extract text from openclaw agent JSON output
+    function extractAgentText(stdout: string): string {
+      // Find the last top-level JSON object (skip plugin log noise)
+      for (let i = stdout.length - 1; i >= 0; i--) {
+        if (stdout[i] === '{') {
+          try {
+            const json = JSON.parse(stdout.slice(i));
+            const payloads = json.result?.payloads || [];
+            const texts = payloads.map((p: any) => p?.text || '').filter(Boolean);
+            if (texts.length > 0) return texts[texts.length - 1];
+            return json.result?.text || json.response || json.content || '';
+          } catch { /* keep searching */ }
+        }
+      }
+      return '';
+    }
+
+    // Deliver choir output to user via OpenClaw messaging (channel-agnostic)
+    // Reads target from OpenClaw config (channels.*.allowFrom) — no hardcoded PII
+    function deliverIfNeeded(choir: typeof CHOIRS[string], text: string): void {
+      if (!choir.delivers || !text || text === 'HEARTBEAT_OK' || text === 'NO_REPLY') return;
+
+      // Resolve delivery target from OpenClaw channel config
+      const channels = api.config?.channels as Record<string, any> | undefined;
+      let target: string | undefined;
+      let channel: string | undefined;
+
+      if (channels) {
+        for (const [ch, cfg] of Object.entries(channels)) {
+          if (cfg?.enabled && cfg?.allowFrom?.[0]) {
+            target = cfg.allowFrom[0];
+            channel = ch;
+            break;
+          }
+        }
+      }
+
+      if (!target) {
+        console.log(`    ⚠ No delivery target found in OpenClaw config`);
+        return;
+      }
+
+      try {
+        const args = [
+          'message', 'send',
+          '--target', target,
+          '--message', text.slice(0, 4000),
+        ];
+        if (channel) args.push('--channel', channel);
+
+        const deliveryResult = spawnSync('openclaw', args, {
+          encoding: 'utf-8',
+          timeout: 30000,
+        });
+        if (deliveryResult.status === 0) {
+          console.log(`    📨 Delivered to user via ${channel || 'default'}`);
+        } else {
+          console.log(`    ⚠ Delivery failed: ${(deliveryResult.stderr || '').slice(0, 80)}`);
+        }
+      } catch (err: any) {
+        console.log(`    ⚠ Delivery error: ${(err.message || '').slice(0, 80)}`);
+      }
+    }
+
     // Register CLI
     api.registerCli((ctx) => {
       const program = ctx.program.command("chorus").description("CHORUS Nine Choirs management");
@@ -187,6 +262,8 @@ const plugin = {
             }
           }
 
+          const runCtxStore: Map<string, string> = new Map();
+
           console.log("");
           if (!choirId) {
             console.log("🎵 Running all Nine Choirs in cascade order...");
@@ -198,10 +275,11 @@ const plugin = {
             if (!choir) continue;
             
             console.log(`Running ${choir.name}...`);
+            const prompt = resolvePrompt(choir, runCtxStore);
           
             // Preview mode - just show the prompt
             if (options?.preview) {
-              console.log(`  Prompt: ${choir.prompt.slice(0, 100)}...`);
+              console.log(`  Prompt: ${prompt.slice(0, 100)}...`);
               continue;
             }
 
@@ -210,17 +288,19 @@ const plugin = {
               try {
                 const result = await api.runAgentTurn({
                   sessionLabel: `chorus:${id}`,
-                  message: choir.prompt,
+                  message: prompt,
                   isolated: true,
                   timeoutSeconds: 300,
                 });
                 const text = result?.text || result?.payloads?.[0]?.text || '';
                 const duration = result?.meta?.durationMs || 0;
+                runCtxStore.set(id, text.slice(0, 2000));
                 console.log(`  ✓ ${choir.name} complete (${(duration/1000).toFixed(1)}s)`);
                 if (text) {
                   const preview = text.slice(0, 150).replace(/\n/g, ' ');
                   console.log(`    ${preview}${text.length > 150 ? '...' : ''}`);
                 }
+                deliverIfNeeded(choir, text);
               } catch (err) {
                 console.error(`  ✗ ${choir.name} failed:`, err);
               }
@@ -230,7 +310,7 @@ const plugin = {
                 const result = spawnSync('openclaw', [
                   'agent',
                   '--session-id', `chorus:${id}`,
-                  '--message', choir.prompt,
+                  '--message', prompt,
                   '--json',
                 ], {
                   encoding: 'utf-8',
@@ -239,22 +319,14 @@ const plugin = {
                 });
                 
                 if (result.status === 0) {
-                  try {
-                    // Extract JSON from output (may have plugin logs before it)
-                    const stdout = result.stdout || '';
-                    const jsonStart = stdout.indexOf('{');
-                    const jsonStr = jsonStart >= 0 ? stdout.slice(jsonStart) : '{}';
-                    const json = JSON.parse(jsonStr);
-                    const text = json.result?.payloads?.[0]?.text || '';
-                    const duration = json.result?.meta?.durationMs || 0;
-                    console.log(`  ✓ ${choir.name} complete (${(duration/1000).toFixed(1)}s)`);
-                    if (text) {
-                      const preview = text.slice(0, 150).replace(/\n/g, ' ');
-                      console.log(`    ${preview}${text.length > 150 ? '...' : ''}`);
-                    }
-                  } catch (parseErr) {
-                    console.log(`  ✓ ${choir.name} complete (parse error: ${parseErr})`);
+                  const text = extractAgentText(result.stdout || '');
+                  runCtxStore.set(id, text.slice(0, 2000));
+                  console.log(`  ✓ ${choir.name} complete`);
+                  if (text) {
+                    const preview = text.slice(0, 150).replace(/\n/g, ' ');
+                    console.log(`    ${preview}${text.length > 150 ? '...' : ''}`);
                   }
+                  deliverIfNeeded(choir, text);
                 } else {
                   const errMsg = result.stderr || result.stdout || 'Unknown error';
                   if (errMsg.includes('ECONNREFUSED') || errMsg.includes('connect')) {
@@ -271,7 +343,7 @@ const plugin = {
 
           console.log("");
           if (!choirId) {
-            console.log("🎵 All choirs scheduled.");
+            console.log("🎵 All choirs complete.");
           }
           console.log("");
         });
@@ -348,10 +420,13 @@ const plugin = {
                         const jsonStr = jsonStart >= 0 ? stdout.slice(jsonStart) : '{}';
                         const json = JSON.parse(jsonStr);
                         const text = json.result?.payloads?.[0]?.text || '';
+                        contextStore.set(choirId, text.slice(0, 500));
                         contextStore.set(`${choirId}:d${day}`, text.slice(0, 500));
                         console.log(` ✓ (dry)`);
                       } catch {
-                        contextStore.set(`${choirId}:d${day}`, `[${choir.name} would run]`);
+                        const fallback = `[${choir.name} would run]`;
+                        contextStore.set(choirId, fallback);
+                        contextStore.set(`${choirId}:d${day}`, fallback);
                         console.log(` ✓ (dry)`);
                       }
                     } else {
@@ -366,11 +441,14 @@ const plugin = {
                 process.stdout.write(`  ${choir.emoji} ${choir.name}...`);
 
                 try {
+                  // Resolve context from upstream choirs
+                  const prompt = resolvePrompt(choir, contextStore);
+
                   // Run the REAL choir with full tool access via direct agent call
                   const result = spawnSync('openclaw', [
                     'agent',
                     '--session-id', `chorus:vision:${choirId}:d${day}`,
-                    '--message', choir.prompt,
+                    '--message', prompt,
                     '--json',
                   ], {
                     encoding: 'utf-8',
@@ -382,19 +460,19 @@ const plugin = {
                     // Parse the agent response (extract JSON from output)
                     try {
                       const stdout = result.stdout || '';
-                      const jsonStart = stdout.indexOf('{');
-                      const jsonStr = jsonStart >= 0 ? stdout.slice(jsonStart) : '{}';
-                      const json = JSON.parse(jsonStr);
-                      const payloads = json.result?.payloads || [];
-                      const text = payloads.map((p: any) => p.text || '').filter(Boolean).join('\n\n') || '';
-                      const duration = json.result?.meta?.durationMs || 0;
-                      contextStore.set(`${choirId}:d${day}`, text.slice(0, 2000)); // Keep 2KB of response
+                      const text = extractAgentText(stdout);
+                      // Store by both choirId (for resolvePrompt) and choirId:dN (for summary)
+                      contextStore.set(choirId, text.slice(0, 2000));
+                      contextStore.set(`${choirId}:d${day}`, text.slice(0, 2000));
                       successfulRuns++;
-                      console.log(` ✓ (${(duration/1000).toFixed(1)}s)`);
+                      console.log(` ✓`);
 
-                      // Note: Archangels handles its own delivery via OpenClaw messaging tools
+                      // Deliver output to user via OpenClaw messaging if choir is marked for delivery
+                      deliverIfNeeded(choir, text);
                     } catch {
-                      contextStore.set(`${choirId}:d${day}`, result.stdout?.slice(-2000) || `[${choir.name} completed]`);
+                      const fallback = result.stdout?.slice(-2000) || `[${choir.name} completed]`;
+                      contextStore.set(choirId, fallback);
+                      contextStore.set(`${choirId}:d${day}`, fallback);
                       successfulRuns++;
                       console.log(` ✓`);
                     }
